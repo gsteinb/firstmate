@@ -8,8 +8,7 @@
 #                 "FLEET_SYNC: <repo>: skipped|recovered|STUCK: <detail>",
 #                 "TASKS_AXI: available", "TANGLE: <remediation>",
 #                 "SECONDMATE_SYNC: secondmate <id>: skipped: <reason>",
-#                 "NUDGE_SECONDMATES: <window-targets...>",
-#                 "FMX: X mode on ..." or "FMX: X mode off ...".
+#                 "NUDGE_SECONDMATES: <window-targets...>".
 #          A NUDGE_SECONDMATES line lists the RUNNING secondmate windows whose
 #          worktree was fast-forwarded to firstmate's own current default-branch
 #          commit (a purely LOCAL fast-forward, never an origin fetch) AND whose
@@ -27,9 +26,6 @@
 #          tasks-axi is an OPTIONAL backlog-management capability reported only
 #          when tasks-axi --version is 0.1.1 or newer. It is never a MISSING
 #          line and never prompts an install.
-#          X mode is OPTIONAL and inert unless FM_HOME/.env has a non-empty
-#          FMX_PAIRING_TOKEN. When opted in, bootstrap requires curl+jq, writes
-#          the relay poll shim and 30s cadence config, and prints an FMX line.
 #          Fleet sync fetches, fast-forwards safe default-branch states, reports
 #          recovered and STUCK clone drift, and prunes gone local branches; it is
 #          bounded by FM_FLEET_SYNC_BOOTSTRAP_TIMEOUT, default 20s.
@@ -50,8 +46,6 @@ STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
 . "$SCRIPT_DIR/fm-tangle-lib.sh"
 # shellcheck source=bin/fm-ff-lib.sh
 . "$SCRIPT_DIR/fm-ff-lib.sh"
-# shellcheck source=bin/fm-x-lib.sh
-. "$SCRIPT_DIR/fm-x-lib.sh"
 
 fleet_sync() {
   [ -x "$FM_ROOT/bin/fm-fleet-sync.sh" ] || return 0
@@ -167,107 +161,6 @@ no_mistakes_compatible() {
   [ "$patch" -ge "$NO_MISTAKES_MIN_PATCH" ]
 }
 
-# Write CONTENT to DEST only when it differs, so re-running bootstrap does not
-# churn mtimes or duplicate generated files (idempotence).
-write_if_changed() {
-  local dest=$1 content=$2
-  [ -f "$dest" ] && [ "$(cat "$dest" 2>/dev/null)" = "$content" ] && return 0
-  printf '%s\n' "$content" > "$dest"
-}
-
-# X mode (opt-in): when this home's .env carries a non-empty FMX_PAIRING_TOKEN,
-# wire the relay poll into the EXISTING watcher check mechanism without touching
-# fm-watch.sh or any other watcher-backbone file. Drops two idempotent,
-# gitignored artifacts:
-#   state/x-watch.check.sh - check shim that execs bin/fm-x-poll.sh each cycle
-#   config/x-mode.env      - exports FM_CHECK_INTERVAL=30, sourced by the watcher
-#                            arm so only an X instance polls at the 30s cadence
-# On opt-out (no token, or empty) it removes any such artifacts so the instance
-# reverts to the default 300s no-poll behavior. Absent a token AND with no leftover
-# artifacts it is a complete no-op (nothing written, nothing printed), so a non-X
-# user sees zero change. Prints one confirmation line on opt-in, and one on opt-out
-# only when it actually removed artifacts. It never touches the watcher itself;
-# applying a cadence transition to a running watcher is the caller's job via
-# 'bin/fm-watch-arm.sh --restart' (see AGENTS.md "X mode").
-x_mode_setup() {
-  local env_file token shim cadence shim_body cadence_body tool missing
-  env_file="$FM_HOME/.env"
-  shim="$STATE/x-watch.check.sh"
-  cadence="$CONFIG/x-mode.env"
-
-  token=
-  [ -f "$env_file" ] && token=$(fmx_env_get FMX_PAIRING_TOKEN "$env_file")
-
-  x_mode_remove_artifacts() {
-    rm -f "$shim" "$cadence" 2>/dev/null || true
-    [ ! -e "$shim" ] && [ ! -e "$cadence" ]
-  }
-
-  if [ -z "$token" ]; then
-    # Opt-out (or never opted in): drop any X artifacts; stay silent unless we
-    # actually removed something.
-    if [ -e "$shim" ] || [ -e "$cadence" ]; then
-      if x_mode_remove_artifacts; then
-        echo "FMX: X mode off - removed relay poll shim and 30s cadence; restart the watcher (bin/fm-watch-arm.sh --restart) to drop back to the default cadence"
-      else
-        echo "FMX: X mode off - failed to remove relay poll shim or 30s cadence"
-      fi
-    fi
-    return 0
-  fi
-
-  missing=0
-  for tool in curl jq; do
-    if ! command -v "$tool" >/dev/null 2>&1; then
-      echo "MISSING: $tool (install: $(install_cmd "$tool"))"
-      missing=1
-    fi
-  done
-  if [ "$missing" -ne 0 ]; then
-    if [ -e "$shim" ] || [ -e "$cadence" ]; then
-      if x_mode_remove_artifacts; then
-        echo "FMX: X mode off - missing relay poll dependencies; install them and rerun bootstrap"
-      else
-        echo "FMX: X mode off - failed to remove relay poll shim or 30s cadence after missing relay poll dependencies"
-      fi
-    fi
-    return 0
-  fi
-
-  fmx_arm_failed() {
-    if x_mode_remove_artifacts; then
-      echo "FMX: X mode off - failed to arm relay poll shim or 30s cadence"
-    else
-      echo "FMX: X mode off - failed to arm relay poll shim or 30s cadence; stale artifacts remain"
-    fi
-  }
-
-  mkdir -p "$STATE" "$CONFIG" 2>/dev/null || { fmx_arm_failed; return 0; }
-
-  shim_body=$(cat <<EOF
-#!/usr/bin/env bash
-# Auto-generated by fm-bootstrap.sh - X mode connector poll shim.
-# The watcher runs this each check cycle; output becomes a check: wake.
-export FM_HOME=$(printf '%q' "$FM_HOME")
-exec $(printf '%q' "$FM_ROOT/bin/fm-x-poll.sh")
-EOF
-)
-  write_if_changed "$shim" "$shim_body" || { fmx_arm_failed; return 0; }
-  chmod +x "$shim" 2>/dev/null || { fmx_arm_failed; return 0; }
-
-  cadence_body=$(cat <<'EOF'
-# Auto-generated by fm-bootstrap.sh - X mode watcher cadence.
-# Source this before arming the watcher (see AGENTS.md "X mode") so fm-watch.sh
-# polls the X check every 30s. Non-X instances have no such file and keep the
-# default 300s cadence.
-export FM_CHECK_INTERVAL=30
-EOF
-)
-  write_if_changed "$cadence" "$cadence_body" || { fmx_arm_failed; return 0; }
-
-  echo "FMX: X mode on - relay poll armed via state/x-watch.check.sh; 30s watcher cadence in config/x-mode.env"
-}
-
 if [ "${1:-}" = "install" ]; then
   shift
   [ $# -gt 0 ] || { echo "usage: fm-bootstrap.sh install <tool>..." >&2; exit 1; }
@@ -303,6 +196,5 @@ crew=
 [ -n "$crew" ] && [ "$crew" != "default" ] && echo "CREW_HARNESS_OVERRIDE: $crew"
 fm_tasks_axi_compatible && echo "TASKS_AXI: available"
 secondmate_sync
-x_mode_setup
 fleet_sync
 exit 0
