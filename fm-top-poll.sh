@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # fm-top-poll.sh - block until fm-top writes a decision to its inbox, then print
-# it and exit. Run as a harness-tracked background task so a decision the captain
-# makes inside fm-top routes straight back to firstmate. LOCAL prototype
-# companion to fm-top.py (both gitignored); not part of core supervision.
+# it, consume it, and exit. Run as a harness-tracked background task so a decision
+# the captain makes inside fm-top routes straight back to firstmate. Tracked
+# companion tooling to fm-top.py.
 set -euo pipefail
 FM_HOME="${FM_HOME:-$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)}"
 INBOX="$FM_HOME/state/.fmtop-inbox"
@@ -15,6 +15,7 @@ while [ "$elapsed" -lt "$MAX" ]; do
     echo "fmtop-decision: $f"
     cat "$f" 2>/dev/null || true
     echo
+    rm -f "$f"
     exit 0
   fi
   sleep 2

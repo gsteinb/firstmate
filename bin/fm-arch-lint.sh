@@ -78,7 +78,7 @@ if [ "$rc" -eq 0 ] && [ -n "$diff_base" ] && command -v git >/dev/null 2>&1; the
         while IFS= read -r code_path; do
           [ -n "$code_path" ] || continue
           code_path="${code_path%/}"
-          if printf '%s\n' "$changed" | grep -q -- "^$code_path"; then
+          if printf '%s\n' "$changed" | awk -v p="$code_path" '$0==p || index($0, p"/")==1 {found=1} END{exit !found}'; then
             nudge=1
             break
           fi
