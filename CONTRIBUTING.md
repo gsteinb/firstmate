@@ -51,7 +51,7 @@ Tracked changes to firstmate itself - `AGENTS.md`, `README.md`, `CONTRIBUTING.md
 The `fm-top` cockpit is tracked tooling like the rest: launch it with `python3 fm-top.py` from the repo root; see [docs/fm-top.md](docs/fm-top.md) for its keys, the Architecture view, and the `fm-arch:v1` schema.
 When supervising live crewmates, keep firstmate's own long validation or build commands in the background so watcher wakes can still be handled.
 Crewmate validation follows the installed no-mistakes version's SKILL.md and live `axi` help instead of duplicating gate mechanics in firstmate docs.
-Firstmate's wrapper still matters: `ask-user` findings route to the captain through firstmate, and crewmates avoid `--yes` because it silently resolves captain-owned decisions without escalation.
+Firstmate's wrapper still matters: crewmates write their run's `--intent` in the brief's structured Problem/Solution/Details shape because the text becomes the PR's `## Intent` section verbatim, `ask-user` findings route to the captain through firstmate, and crewmates avoid `--yes` because it silently resolves captain-owned decisions without escalation.
 Local `.no-mistakes/` state and test evidence stay out of this repo; `.no-mistakes.yaml` keeps evidence in a temp directory and pins the gate's test command to the same bash behavior suite as CI.
 
 Check and test the toolbelt before pushing:

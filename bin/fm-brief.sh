@@ -25,6 +25,9 @@
 #   local-only   implement on branch, stop and report "ready in branch" (no push/PR);
 #                firstmate reviews, captain approves, firstmate merges to local main
 # Ship briefs begin with a worktree-isolation assertion before the branch step.
+# no-mistakes ship briefs also pin the run's --intent contract: the crewmate
+# writes it in a structured Problem/Solution/Details shape (it becomes the PR's
+# Intent section verbatim), never leaving it to transcript inference.
 # Scout tasks ignore mode - their deliverable is a report, not a merge.
 # Ship tasks include a project-memory section so durable project-intrinsic
 # learnings can be committed to AGENTS.md through the project's delivery path.
@@ -211,10 +214,26 @@ You drive no-mistakes by responding to its gates, not by implementing fixes.
 Follow the no-mistakes guidance for the mechanics: it loads when you invoke /no-mistakes, and \`no-mistakes axi run --help\` plus the \`help\` lines in each \`axi\` response are authoritative and version-matched to the installed binary.
 Do not hand-edit, commit, or fix findings yourself while a run is active - the pipeline applies every fix.
 
-Two firstmate-specific rules layer on top of that guidance:
+Three firstmate-specific rules layer on top of that guidance:
+- Write your \`--intent\` yourself, in the structured shape below. Never leave it to transcript inference, which produces a third-person narrative as the PR Intent section.
 - ask-user findings are not yours to answer: escalate to firstmate (rule 6) and stop.
   When the decision comes back, feed it to the gate with \`no-mistakes axi respond\` and let the pipeline apply it - do not route the question to "the user" or implement the fix yourself.
 - Avoid \`--yes\`: the captain, not you, owns the ask-user decisions it would silently auto-resolve.
+
+The \`--intent\` text is inserted verbatim as the PR \`## Intent\` section.
+Keep the useful technical detail (root cause, mechanism, tests/guardrails), but write it scannable: no "the developer"/"the agent" narration, no single giant paragraph.
+Use exactly this structure:
+
+\`\`\`
+### Problem
+<what was broken + root cause - 2-4 tight sentences or bullets>
+
+### Solution
+<how it is fixed - the actual change, in bullets>
+
+### Details
+<specifics worth knowing: files/mechanism touched, tests/guardrails, migrations, follow-ups - enough to understand it, not a narrative>
+\`\`\`
 
 After /no-mistakes reports CI green, append \`done: PR {url} checks green\` and stop. You are finished.
 EOF
