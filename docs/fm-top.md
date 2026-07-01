@@ -28,8 +28,8 @@ The default screen is a sortable table of the whole fleet, not just live crew:
 | `Enter`     | open the detail view / choose a decision option    |
 | `a`         | open the **Architecture view**                     |
 | `c`         | flag the selected crew for firstmate to check on   |
-| `1`-`5`     | sort by column                                     |
-| `r`         | reverse the sort                                   |
+| `1`-`5`     | sort by column; re-press the active column to toggle `▲`/`▼` |
+| `r`         | reverse the sort direction                         |
 | `d`         | show / hide recently-done tasks                    |
 | `Esc` `q`   | back / quit                                        |
 
