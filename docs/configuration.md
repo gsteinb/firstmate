@@ -110,4 +110,7 @@ FM_CRASH_BACKOFF=60                # seconds to wait after crossing the crash th
 FM_CRASH_NORMAL_SLEEP=5            # seconds to wait after an isolated watcher crash
 FM_LOG_MAX_BYTES=1048576           # daemon log size that triggers trimming
 FM_LOG_KEEP_LINES=2000             # daemon log lines kept when trimming
+# fm-top cockpit (fm-top.py / fm-top-poll.sh)
+FM_TOP_REFRESH=3                   # seconds between fm-top table refreshes
+FM_TOP_POLL_MAX=3600               # fm-top-poll.sh safety cap: seconds before it re-arms without a decision
 ```

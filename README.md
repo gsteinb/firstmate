@@ -45,6 +45,7 @@ This is.. a directory that turns any agent into your firstmate, and you the capt
 - **Two task shapes** - ship tasks deliver a change; scout tasks investigate, plan, reproduce, or audit and leave a report.
 - **Explicit project modes** - each project ships via `no-mistakes`, `direct-PR`, or `local-only`, with an optional `+yolo` autonomy flag.
 - **Optional secondmates** - opt in to persistent domain supervisors that run from isolated firstmate homes with their own `FM_HOME`, state, projects, and session lock, kept on the primary firstmate version by guarded local fast-forwards.
+- **A live fleet cockpit** - `fm-top`, an optional curses TUI showing every task and pending decision at a glance, plus a per-project Architecture view that browses each project's `ARCHITECTURE.md` component tree.
 - **Event-driven, zero-token supervision** - a bash watcher sleeps on the fleet and wakes the first mate only when something needs you.
 - **Guarded by construction** - the first mate is read-only over your projects outside guarded clone refreshes, safe branch pruning, and approved `local-only` fast-forward merges; crewmates make every project change behind your merge approval.
 - **Restart-proof** - all state lives on disk and in tmux; kill the session anytime and the next one reconciles and carries on.
@@ -132,6 +133,7 @@ Agent-only reference skills live under `.agents/skills/` and are loaded by first
 - [docs/architecture.md](docs/architecture.md) - how the crew, supervision, worktrees, secondmates, and project modes work.
 - [docs/configuration.md](docs/configuration.md) - environment variables, `FM_HOME`, the files you set, and harness support.
 - [docs/scripts.md](docs/scripts.md) - the `bin/` toolbelt reference.
+- [docs/fm-top.md](docs/fm-top.md) - the optional `fm-top` fleet cockpit, its Architecture view, and the `fm-arch:v1` `ARCHITECTURE.md` schema.
 - [`AGENTS.md`](AGENTS.md) - firstmate's full operating manual for the orchestrator agent.
 - [CONTRIBUTING.md](CONTRIBUTING.md) - how to contribute, including the dev/test commands.
 

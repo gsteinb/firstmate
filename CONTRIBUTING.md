@@ -47,7 +47,8 @@ See the [no-mistakes quick start](https://kunchenguid.github.io/no-mistakes/star
 
 ## Development
 
-Tracked changes to firstmate itself - `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, `.tasks.toml`, `.github/workflows/`, `bin/`, and agent skill files - ship through the `no-mistakes` pipeline on a feature branch and require an explicit merge approval.
+Tracked changes to firstmate itself - `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, `.tasks.toml`, `.github/workflows/`, `bin/`, agent skill files, and the `fm-top` cockpit (`fm-top.py`, `fm-top-poll.sh`) - ship through the `no-mistakes` pipeline on a feature branch and require an explicit merge approval.
+The `fm-top` cockpit is tracked tooling like the rest: launch it with `python3 fm-top.py` from the repo root; see [docs/fm-top.md](docs/fm-top.md) for its keys, the Architecture view, and the `fm-arch:v1` schema.
 When supervising live crewmates, keep firstmate's own long validation or build commands in the background so watcher wakes can still be handled.
 Crewmate validation follows the installed no-mistakes version's SKILL.md and live `axi` help instead of duplicating gate mechanics in firstmate docs.
 Firstmate's wrapper still matters: `ask-user` findings route to the captain through firstmate, and crewmates avoid `--yes` because it silently resolves captain-owned decisions without escalation.
@@ -80,6 +81,7 @@ tests/fm-secondmate-lifecycle-e2e.test.sh # persistent secondmate routing, seedi
 tests/fm-secondmate-safety.test.sh        # secondmate home safety, idle charter, handoff validation, and teardown boundary tests
 tests/fm-teardown.test.sh                 # fm-teardown.sh landed-work safety and reminder checks: fork-remote allow, squash/content landings, dirty and unlanded refusals, PR-head metadata, tasks-axi reminder, --force override
 tests/fm-crew-state.test.sh               # fm-crew-state.sh current-state reconciliation: run-step authority including closed panes, stale needs-decision/blocked superseded by a resumed run, genuine-parked, cross-branch attribution, pane/status-log fallback, scout skip, torn-down/missing-meta graceful
+tests/fm-arch.test.sh                     # fm-arch:v1 parser and lint: heading-depth=tree-depth, diagram extraction, mandatory marker, malformed docs, lint pass/fail on fixtures, Tier-2 advisory, and fm-top parser import
 [ "$(readlink CLAUDE.md)" = "AGENTS.md" ]
 [ "$(readlink .claude/skills)" = "../.agents/skills" ]
 tmp=$(mktemp -d) && printf 'done: smoke\n' > "$tmp/smoke.status" && FM_STATE_OVERRIDE="$tmp" FM_SIGNAL_GRACE=1 FM_POLL=1 FM_HEARTBEAT=999999 bin/fm-watch-arm.sh  # watcher re-arm smoke test (prints arm status, then an actionable signal)

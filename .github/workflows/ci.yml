@@ -39,6 +39,19 @@ jobs:
             "$test_script"
           done
 
+  arch-lint:
+    name: Architecture doc lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Tier-1 fm-arch:v1 structural lint
+        run: |
+          set -eu
+          # Validate firstmate's own ARCHITECTURE.md if/when it exists (absent = pass),
+          # and the tracked valid fixture that keeps the parser and lint in sync.
+          bin/fm-arch-lint.sh .
+          bin/fm-arch-lint.sh tests/fixtures/arch/valid
+
   invariants:
     name: Repo invariants
     runs-on: ubuntu-latest

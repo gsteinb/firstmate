@@ -2,6 +2,7 @@
 
 The first mate drives these; interactive entrypoints work by hand too, while `*-lib.sh` files are sourced helpers.
 Each file also starts with a short header comment.
+The optional `fm-top` cockpit lives at the repo root (`fm-top.py`, `fm-top-poll.sh`); see [fm-top.md](fm-top.md) for its keys, the Architecture view, and the `fm-arch:v1` schema.
 
 | Script                   | Description                                                                                                         |
 | ------------------------ | ------------------------------------------------------------------------------------------------------------------- |
@@ -36,3 +37,7 @@ Each file also starts with a short header comment.
 | `fm-teardown.sh`         | Return a clean, landed ship worktree or retire/release a secondmate home; requires scout reports, checks child work, removes firstmate-owned hook artifacts, and prints the backlog reminder |
 | `fm-harness.sh`          | Detect the running harness; resolve the effective crewmate harness                                                  |
 | `fm-lock.sh`             | Per-home firstmate session lock                                                                                     |
+| `fm-arch-lint.sh`        | Validate a project's `ARCHITECTURE.md` against `fm-arch:v1` (Tier-1 structural lint, absent doc passes; optional Tier-2 advisory staleness nudge) using the shared `fm_arch.py` parser |
+| `fm_arch.py`             | The single `fm-arch:v1` `ARCHITECTURE.md` parser and structural lint, imported by both `fm-arch-lint.sh` and `fm-top.py` so the schema and renderer cannot drift |
+| `fm-top.py`              | Optional local curses cockpit (repo root): a live fleet table plus a per-project Architecture view over each `ARCHITECTURE.md`; read-only bar the decisions/checks you send |
+| `fm-top-poll.sh`         | Companion background poll (repo root): block until `fm-top` writes a decision to its inbox, print it, and exit so the decision routes back to firstmate |
