@@ -123,6 +123,31 @@ if bad:
 PY
 pass "status labels: 'parked' split into 'waiting' (done, no action) and 'at-gate' (needs action)"
 
+# Re-pressing the active sort column toggles its direction (asc <-> desc), like
+# clicking a header twice; a different column switches in the default direction.
+python3 - "$ROOT" <<'PY'
+import importlib.util, os, sys
+root = sys.argv[1]
+spec = importlib.util.spec_from_file_location("fmtop", os.path.join(root, "fm-top.py"))
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+bad = []
+# switch to a different column: default direction (ascending), regardless of prior rev.
+if m._next_sort(2, False, 3) != (3, False):
+    bad.append("switching column should use default (asc): %r" % (m._next_sort(2, False, 3),))
+if m._next_sort(2, True, 3) != (3, False):
+    bad.append("switching column must reset to default even when prior was desc: %r" % (m._next_sort(2, True, 3),))
+# re-press the active column: toggle direction.
+if m._next_sort(2, False, 2) != (2, True):
+    bad.append("re-press active asc should toggle to desc: %r" % (m._next_sort(2, False, 2),))
+if m._next_sort(2, True, 2) != (2, False):
+    bad.append("re-press active desc should toggle to asc: %r" % (m._next_sort(2, True, 2),))
+if bad:
+    for b in bad:
+        sys.stderr.write("assert failed: %s\n" % b)
+    sys.exit(1)
+PY
+pass "sort UX: re-pressing the active column toggles ▲/▼; a different column resets to default"
+
 # A workflow row must never trigger a crew-state probe (no pane).
 assert_grep "fix-login-k3" "$calls" "live crew should be probed"
 assert_no_grep "clickup-audit-w1" "$calls" "a workflow must not be crew-state probed"

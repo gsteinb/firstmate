@@ -9,7 +9,7 @@ Architecture view over each project's ARCHITECTURE.md.
 
 Keys:
   ↑/↓ k/j   move           Enter   detail / choose option
-  a         architecture   1-5     sort column       r   reverse
+  a         architecture   1-5     sort column (re-press toggles ▲/▼)   r   reverse
   c         flag crew for firstmate to check (maybe stuck)
   d         show/hide recent-done tail   Esc / q   back / quit
 
@@ -62,6 +62,18 @@ STATUS_META = {
 SORT_RANK = {"needs-decision": 0, "blocked": 1, "failed": 2, "at-gate": 3,
              "with-firstmate": 4, "PR-ready": 5, "working": 6, "workflow": 7,
              "validating": 8, "waiting": 9, "queued": 10, "done": 11}
+
+
+def _next_sort(cur_col, cur_rev, key_col):
+    """Return the (column, reversed) sort state after a sort-column key press.
+
+    Re-pressing the column that is already active toggles its direction
+    (ascending <-> descending), like clicking a header twice; pressing a
+    different column switches to it in the default (ascending) direction.
+    """
+    if key_col == cur_col:
+        return cur_col, not cur_rev
+    return key_col, False
 
 
 def _read(path):
@@ -613,9 +625,11 @@ def tui(stdscr):
                          f"{'▼' if sort_rev else '▲'}   {time.strftime('%H:%M:%S')} ")
                 stdscr.addnstr(0, 0, title.ljust(w - 1), w - 1, pair["cyan"] | curses.A_BOLD)
                 x, hdr = 0, ""
+                arrow = "▼" if sort_rev else "▲"
                 for i, (label, _k, wd) in enumerate(cols):
                     width = wd if wd else max(10, w - 1 - x)
-                    hdr += f"{'*' if i == sort_col else ' '}{label:<{width-1}}"
+                    marker = arrow if i == sort_col else " "
+                    hdr += f"{marker}{label:<{width-1}}"
                     x += width
                 stdscr.addnstr(1, 0, hdr.ljust(w - 1), w - 1, curses.A_UNDERLINE | curses.A_BOLD)
                 body = h - 3
@@ -641,7 +655,7 @@ def tui(stdscr):
                         except curses.error:
                             pass
                         x += width
-                bar = (f" ↑↓ move · Enter detail · a arch · c check · 1-5 sort · r rev · "
+                bar = (f" ↑↓ move · Enter detail · a arch · c check · 1-5 sort (re-press toggles ▲▼) · r rev · "
                        f"d {'hide' if show_done else 'show'} done · q quit ")
                 if flash and time.time() - flash_t < 5:
                     bar = f" ✓ {flash} "
@@ -858,7 +872,7 @@ def tui(stdscr):
                 elif ch in (ord("1"), ord("2"), ord("3"), ord("4"), ord("5")):
                     nc = ch - ord("1")
                     if nc < len(cols):
-                        sort_col = nc
+                        sort_col, sort_rev = _next_sort(sort_col, sort_rev, nc)
                 elif ch == ord("r"):
                     sort_rev = not sort_rev
                 elif ch == ord("d"):
