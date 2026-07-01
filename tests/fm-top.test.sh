@@ -99,6 +99,30 @@ if failed:
 PY
 pass "gather(): queued rows, workflow rows, recent-done tail, and live crew all surface"
 
+# The old ambiguous "parked" status is split so the label reads plainly: a
+# done-and-waiting run shows "waiting", a run parked at a gate shows "at-gate".
+python3 - "$ROOT" <<'PY'
+import importlib.util, os, sys
+root = sys.argv[1]
+spec = importlib.util.spec_from_file_location("fmtop", os.path.join(root, "fm-top.py"))
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+bad = []
+if m._classify("done", "") != "waiting":
+    bad.append("_classify('done') should be 'waiting', got %r" % m._classify("done", ""))
+if m._classify("parked", "") != "at-gate":
+    bad.append("_classify('parked') should be 'at-gate', got %r" % m._classify("parked", ""))
+if "parked" in m.STATUS_META or "parked" in m.SORT_RANK:
+    bad.append("the ambiguous 'parked' status must be gone")
+for k in ("waiting", "at-gate"):
+    if k not in m.STATUS_META or k not in m.SORT_RANK:
+        bad.append("status %r must be defined in STATUS_META and SORT_RANK" % k)
+if bad:
+    for b in bad:
+        sys.stderr.write("assert failed: %s\n" % b)
+    sys.exit(1)
+PY
+pass "status labels: 'parked' split into 'waiting' (done, no action) and 'at-gate' (needs action)"
+
 # A workflow row must never trigger a crew-state probe (no pane).
 assert_grep "fix-login-k3" "$calls" "live crew should be probed"
 assert_no_grep "clickup-audit-w1" "$calls" "a workflow must not be crew-state probed"

@@ -53,14 +53,15 @@ STATUS_META = {
     "validating":     ("cyan",   "◐"),
     "PR-ready":       ("green",  "▲"),
     "done":           ("green",  "✓"),
-    "parked":         ("grey",   "◌"),
+    "at-gate":        ("yellow", "◪"),   # a run parked at a gate - needs action
+    "waiting":        ("grey",   "◌"),   # done, waiting for its lane / merge
     "queued":         ("grey",   "·"),
     "blocked":        ("red",    "■"),
     "failed":         ("red",    "✗"),
 }
-SORT_RANK = {"needs-decision": 0, "blocked": 1, "failed": 2, "with-firstmate": 3,
-             "PR-ready": 4, "working": 5, "workflow": 6, "validating": 7, "parked": 8,
-             "queued": 9, "done": 10}
+SORT_RANK = {"needs-decision": 0, "blocked": 1, "failed": 2, "at-gate": 3,
+             "with-firstmate": 4, "PR-ready": 5, "working": 6, "workflow": 7,
+             "validating": 8, "waiting": 9, "queued": 10, "done": 11}
 
 
 def _read(path):
@@ -149,8 +150,10 @@ def _classify(state, note):
         return "validating"
     if state == "working":
         return "working"
-    if state in ("done", "parked"):
-        return "parked"
+    if state == "done":
+        return "waiting"        # done and waiting for its lane / merge - no action needed
+    if state == "parked":
+        return "at-gate"        # genuinely parked at a gate - needs action
     return state if state in STATUS_META else "working"
 
 
