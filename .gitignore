@@ -6,3 +6,7 @@ data/
 .DS_Store
 .env
 config/crew-harness
+
+# Python bytecode from the now-tracked fm-top.py / bin/fm_arch.py
+__pycache__/
+*.pyc
