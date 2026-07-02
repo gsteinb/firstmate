@@ -81,7 +81,8 @@ tests/fm-update.test.sh                   # fast-forward-only self-update, rerea
 tests/fm-secondmate-sync.test.sh          # local-HEAD secondmate sync, no-fetch, bootstrap nudge gating, and spawn hook tests
 tests/fm-secondmate-lifecycle-e2e.test.sh # persistent secondmate routing, seeding, backlog handoff, spawn, recovery, teardown, and FM_HOME flow tests
 tests/fm-secondmate-safety.test.sh        # secondmate home safety, idle charter, handoff validation, and teardown boundary tests
-tests/fm-teardown.test.sh                 # fm-teardown.sh landed-work safety and reminder checks: fork-remote allow, squash/content landings, dirty and unlanded refusals, PR-head metadata, tasks-axi reminder, --force override
+tests/fm-teardown.test.sh                 # fm-teardown.sh landed-work safety and reminder checks: fork-remote allow, squash/content landings, dirty and unlanded refusals, PR-head metadata, tasks-axi reminder, --force override, case-drifted treehouse worktree return reconciled
+tests/fm-treehouse-return.test.sh         # fm-treehouse-lib.sh robust treehouse return: registered-path reconciliation (exact, case-only drift, no-match fallback) and stale index.lock clearing (no lock, stale clear, live-held refuse)
 tests/fm-crew-state.test.sh               # fm-crew-state.sh current-state reconciliation: run-step authority including closed panes, stale needs-decision/blocked superseded by a resumed run, genuine-parked, cross-branch attribution, pane/status-log fallback, scout skip, torn-down/missing-meta graceful
 tests/fm-arch.test.sh                     # fm-arch:v1 parser and lint: heading-depth=tree-depth, diagram extraction, mandatory marker, malformed docs, lint pass/fail on fixtures, Tier-2 advisory, and fm-top parser import
 tests/fm-top.test.sh                      # fm-top gather() rows via --once-json: queued backlog, recent-done tail, unprobed background workflow rows, waiting/at-gate status labels, and sort-direction toggling

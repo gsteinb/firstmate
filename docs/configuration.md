@@ -90,6 +90,7 @@ FM_FLEET_SYNC_BOOTSTRAP_TIMEOUT=20   # seconds allowed for bootstrap's best-effo
 FM_FLEET_PRUNE=1        # set to 0 to skip pruning local branches whose upstream is gone
 FM_GATE_START_TIMEOUT=15   # seconds fm-gate-start.sh waits for the started gate run to appear before reporting a timeout
 FM_GATE_START_POLL=1       # seconds between fm-gate-start.sh run-list confirmation polls
+FM_STALE_LOCK_SECS=120  # age threshold for teardown to clear a stale git index.lock when lsof is unavailable; a live-held lock is never yanked
 FM_BUSY_REGEX='esc (to )?interrupt|Working\.\.\.|Ctrl\+c:cancel'   # busy-pane signatures, shared by watcher and tmux helper
 FM_COMPOSER_IDLE_RE=    # optional empty-composer regex, applied after dim-ghost and border stripping
 GROK_HOME=              # optional Grok config home for firstmate's global grok turn-end hook; defaults to ~/.grok
