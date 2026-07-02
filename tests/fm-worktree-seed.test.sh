@@ -112,14 +112,14 @@ test_seed_registers_git_exclude() {
   excl=$(git -C "$wt" rev-parse --git-path info/exclude)
   case "$excl" in /*) ;; *) excl="$wt/$excl" ;; esac
   assert_present "$excl" "seeding did not create the worktree git exclude file"
-  grep -qxF '.env.local' "$excl" || fail "top-level seeded path not registered in git exclude"
-  grep -qxF 'backend/.env' "$excl" || fail "nested seeded path not registered in git exclude"
+  grep -qxF '/.env.local' "$excl" || fail "top-level seeded path not registered in git exclude"
+  grep -qxF '/backend/.env' "$excl" || fail "nested seeded path not registered in git exclude"
   [ -z "$(git -C "$wt" status --porcelain)" ] || \
     fail "seeded files still show up in git status: $(git -C "$wt" status --porcelain)"
 
   # Re-seeding is idempotent: no duplicate exclude entries.
   seed_worktree "$seed" "$wt"
-  [ "$(grep -cxF '.env.local' "$excl")" = 1 ] || \
+  [ "$(grep -cxF '/.env.local' "$excl")" = 1 ] || \
     fail "re-seeding duplicated the git exclude entry for .env.local"
   pass "seed_worktree: seeded paths are excluded from git status, idempotently"
 }
@@ -188,8 +188,8 @@ test_spawn_seeds_ship_worktree() {
   assert_grep "DB=secret" "$wt/backend/.env" "seeded nested file content mismatch"
   excl=$(git -C "$wt" rev-parse --git-path info/exclude)
   case "$excl" in /*) ;; *) excl="$wt/$excl" ;; esac
-  grep -qxF '.env.local' "$excl" || fail "spawn did not register the seeded top-level path in git exclude"
-  grep -qxF 'backend/.env' "$excl" || fail "spawn did not register the seeded nested path in git exclude"
+  grep -qxF '/.env.local' "$excl" || fail "spawn did not register the seeded top-level path in git exclude"
+  grep -qxF '/backend/.env' "$excl" || fail "spawn did not register the seeded nested path in git exclude"
   pass "fm-spawn: a ship spawn seeds config/worktree-seed/<project>/ into the worktree"
 }
 

@@ -17,9 +17,12 @@
 # Sourced by bin/fm-spawn.sh and the tests. No side effects on source.
 # set -u / set -e safe.
 
-# seed_exclude_path <worktree> <rel>: register <rel> in the worktree's local
-# .git/info/exclude so a firstmate-placed file never shows up as untracked -
-# regardless of the project's own .gitignore. That keeps a seeded secret out of
+# seed_exclude_path <worktree> <rel>: register <rel> as a root-anchored pattern
+# ("/<rel>") in the worktree's local .git/info/exclude so a firstmate-placed
+# file never shows up as untracked - regardless of the project's own
+# .gitignore. Anchoring matters because a linked worktree's info/exclude lives
+# in the pooled clone's shared common dir: an unanchored top-level name like
+# ".env.local" would hide that basename at any depth in every worktree. That keeps a seeded secret out of
 # accidental commits and keeps fm-teardown's dirty-worktree check clean. A
 # non-git <worktree> is a silent no-op (plain-directory callers); a failed
 # append warns to stderr and continues. Always returns 0.
@@ -31,8 +34,8 @@ seed_exclude_path() {  # <worktree> <rel>
     /*) ;;
     *) excl="$wt/$excl" ;;
   esac
-  grep -qxF "$rel" "$excl" 2>/dev/null && return 0
-  if ! { mkdir -p "$(dirname "$excl")" && echo "$rel" >> "$excl"; }; then
+  grep -qxF "/$rel" "$excl" 2>/dev/null && return 0
+  if ! { mkdir -p "$(dirname "$excl")" && echo "/$rel" >> "$excl"; }; then
     echo "fm-seed: failed to exclude '$rel' in worktree git exclude; continuing" >&2
   fi
   return 0
