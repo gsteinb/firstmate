@@ -416,10 +416,11 @@ if [ "$KIND" != secondmate ]; then
   # Worktree seeding: a fresh git worktree never carries the project's untracked/
   # gitignored local files (env, secrets, local config), yet they may be needed to
   # build/run/test the app. Copy any per-project seed store into the worktree at the
-  # matching relative paths (see fm-seed-lib.sh and AGENTS.md section 2). Silent
-  # no-op when no store exists - the common case - and best-effort otherwise: a seed
-  # hiccup warns but never aborts the spawn. Ship and scout only; this whole block
-  # is already inside the KIND != secondmate region.
+  # matching relative paths, registering each seeded path in the worktree's local
+  # git exclude so it never appears untracked (see fm-seed-lib.sh and AGENTS.md
+  # section 2). Silent no-op when no store exists - the common case - and
+  # best-effort otherwise: a seed hiccup warns but never aborts the spawn. Ship and
+  # scout only; this whole block is already inside the KIND != secondmate region.
   seed_worktree "$CONFIG/worktree-seed/$(basename "$PROJ_ABS")" "$WT" || true
 fi
 
@@ -430,11 +431,7 @@ mkdir -p "$STATE"
 STATE_REAL=$(cd "$STATE" && pwd -P)
 TURNEND="$STATE_REAL/$ID.turn-ended"
 exclude_path() {
-  local rel=$1 EXCL
-  EXCL=$(git -C "$WT" rev-parse --git-path info/exclude 2>/dev/null || true)
-  [ -n "$EXCL" ] || return 0
-  mkdir -p "$(dirname "$EXCL")"
-  grep -qxF "$rel" "$EXCL" 2>/dev/null || echo "$rel" >> "$EXCL"
+  seed_exclude_path "$WT" "$1"
 }
 if [ "$KIND" != secondmate ]; then
   case "$HARNESS" in

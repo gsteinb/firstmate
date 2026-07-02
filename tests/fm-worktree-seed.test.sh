@@ -6,7 +6,10 @@
 # or test the app. seed_worktree copies a per-project seed store into the worktree
 # at the matching relative paths. These cases pin: nested paths land correctly, an
 # absent store is a clean no-op, intermediate dirs are created in a fresh worktree,
-# and fm-spawn wires the seed in for a ship spawn (and never for a secondmate).
+# symlinked store entries are followed to their targets, every seeded path is
+# registered in the worktree's local git exclude (idempotently, and as a silent
+# no-op for a non-git directory), and fm-spawn wires the seed in for a ship spawn
+# (and never for a secondmate).
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -75,6 +78,52 @@ test_seed_creates_intermediate_dirs() {
   pass "seed_worktree: copying into a fresh worktree creates intermediate directories"
 }
 
+# --- helper: symlinked store entries are followed to their targets ----------
+
+test_seed_follows_symlinked_sources() {
+  local seed wt
+  seed="$TMP_ROOT/seed-symlink/loanova"
+  wt="$TMP_ROOT/wt-symlink"
+  mkdir -p "$seed" "$wt" "$TMP_ROOT/real-files"
+  printf 'REAL=1\n' > "$TMP_ROOT/real-files/.env.local"
+  ln -s "$TMP_ROOT/real-files/.env.local" "$seed/.env.local"
+
+  seed_worktree "$seed" "$wt"
+
+  assert_present "$wt/.env.local" "symlinked seed source did not land"
+  [ ! -L "$wt/.env.local" ] || fail "seeded file is a symlink instead of a regular copy"
+  assert_grep "REAL=1" "$wt/.env.local" "symlinked seed content mismatch"
+  pass "seed_worktree: a symlinked store entry is followed and its target content lands"
+}
+
+# --- helper: seeded paths are registered in the worktree's git exclude ------
+
+test_seed_registers_git_exclude() {
+  local seed wt excl
+  seed="$TMP_ROOT/seed-exclude/loanova"
+  wt="$TMP_ROOT/wt-exclude"
+  mkdir -p "$seed/backend"
+  printf 'TOP=1\n' > "$seed/.env.local"
+  printf 'DB=secret\n' > "$seed/backend/.env"
+  git init -q -b main "$wt"
+
+  seed_worktree "$seed" "$wt"
+
+  excl=$(git -C "$wt" rev-parse --git-path info/exclude)
+  case "$excl" in /*) ;; *) excl="$wt/$excl" ;; esac
+  assert_present "$excl" "seeding did not create the worktree git exclude file"
+  grep -qxF '.env.local' "$excl" || fail "top-level seeded path not registered in git exclude"
+  grep -qxF 'backend/.env' "$excl" || fail "nested seeded path not registered in git exclude"
+  [ -z "$(git -C "$wt" status --porcelain)" ] || \
+    fail "seeded files still show up in git status: $(git -C "$wt" status --porcelain)"
+
+  # Re-seeding is idempotent: no duplicate exclude entries.
+  seed_worktree "$seed" "$wt"
+  [ "$(grep -cxF '.env.local' "$excl")" = 1 ] || \
+    fail "re-seeding duplicated the git exclude entry for .env.local"
+  pass "seed_worktree: seeded paths are excluded from git status, idempotently"
+}
+
 # --- fm-spawn wiring: a ship spawn seeds; a secondmate spawn does not -------
 
 # A fake tmux that reports FM_FAKE_PANE_PATH as the post-`treehouse get` pane cwd,
@@ -114,7 +163,7 @@ run_spawn() {
 }
 
 test_spawn_seeds_ship_worktree() {
-  local home proj fakebin wt name out status
+  local home proj fakebin wt name out status excl
   home="$TMP_ROOT/spawn-home"
   mkdir -p "$home/data"
   # A real project repo + a genuine isolated worktree the fake pane resolves to.
@@ -137,6 +186,10 @@ test_spawn_seeds_ship_worktree() {
   assert_present "$wt/.env.local" "ship spawn did not seed the top-level local file"
   assert_present "$wt/backend/.env" "ship spawn did not seed the nested local file"
   assert_grep "DB=secret" "$wt/backend/.env" "seeded nested file content mismatch"
+  excl=$(git -C "$wt" rev-parse --git-path info/exclude)
+  case "$excl" in /*) ;; *) excl="$wt/$excl" ;; esac
+  grep -qxF '.env.local' "$excl" || fail "spawn did not register the seeded top-level path in git exclude"
+  grep -qxF 'backend/.env' "$excl" || fail "spawn did not register the seeded nested path in git exclude"
   pass "fm-spawn: a ship spawn seeds config/worktree-seed/<project>/ into the worktree"
 }
 
@@ -161,5 +214,7 @@ test_spawn_without_store_is_unchanged() {
 test_seed_lands_nested_and_toplevel
 test_seed_absent_is_noop
 test_seed_creates_intermediate_dirs
+test_seed_follows_symlinked_sources
+test_seed_registers_git_exclude
 test_spawn_seeds_ship_worktree
 test_spawn_without_store_is_unchanged
