@@ -1,7 +1,7 @@
-# Loanova Architecture
+# Acme Architecture
 <!-- fm-arch:v1 -->
 
-Loanova is a peer-to-peer mortgage lending platform. Borrowers apply and are
+Acme is a peer-to-peer mortgage lending platform. Borrowers apply and are
 automatically underwritten (a 3-gate engine); approved loans are listed on a
 marketplace where KYC-approved investors fund them and receive scheduled
 distributions. A separate admin portal handles review, compliance, and oversight.
@@ -88,12 +88,12 @@ and computes the investor distribution waterfall.
 ```text fm-diagram
  frontend (borrower+investor SPA) ─┐
  frontend-admin (admin SPA) ───────┼─▶ api/client.ts ─▶ Chi API
- frontend-shared (@loanova/shared) ─┘   envelope {success,message,data} · 401→/login
+ frontend-shared (@acme/shared) ────┘   envelope {success,message,data} · 401→/login
 ```
 
 A pnpm monorepo of three React 19 + Vite apps. `frontend/` serves borrowers and
 investors; `frontend-admin/` is the separate admin portal; `frontend-shared/`
-(`@loanova/shared`) holds the API response-envelope types and the `tokens.css`
+(`@acme/shared`) holds the API response-envelope types and the `tokens.css`
 design system both apps import.
 
 ### Admin portal

@@ -32,14 +32,14 @@ cat > "$home/data/backlog.md" <<'MD'
 
 ## Queued
 - [ ] add-dark-mode-p7 - add dark mode toggle (repo: yourapp) blocked-by: fix-login-k3 - shares theme files
-- [ ] audit-deps-z2 - audit dependency licenses (repo: loanova)
+- [ ] audit-deps-z2 - audit dependency licenses (repo: acme)
 
 ## Done
 - [x] old-task-a1 - earlier fix - https://github.com/you/yourapp/pull/9 (merged 2026-06-29)
 MD
 
 printf 'window=firstmate:fm-fix-login-k3\nkind=ship\nproject=/p/yourapp\n' > "$home/state/fix-login-k3.meta"
-printf 'kind=workflow\nproject=/p/loanova\n' > "$home/state/clickup-audit-w1.meta"
+printf 'kind=workflow\nproject=/p/acme\n' > "$home/state/clickup-audit-w1.meta"
 printf 'working: scanning 42 clickup tickets\n' > "$home/state/clickup-audit-w1.status"
 # a terminal workflow: its status verb should pass through to the row
 printf 'kind=workflow\nproject=/p/yourapp\n' > "$home/state/migrate-w2.meta"

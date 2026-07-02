@@ -33,7 +33,7 @@ tree = fm_arch.parse_architecture(valid)
 
 # heading depth = tree depth: root is depth 0, its children depth 1, etc.
 check(tree.depth == 0, "root depth should be 0")
-check(tree.name == "Loanova", "root name should be 'Loanova', got %r" % tree.name)
+check(tree.name == "Acme", "root name should be 'Acme', got %r" % tree.name)
 names = [c.name for c in tree.children]
 check(names == ["Backend API", "Frontends", "Data & Infrastructure"],
       "top-level components wrong: %r" % names)
