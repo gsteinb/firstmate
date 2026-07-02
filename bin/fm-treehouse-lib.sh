@@ -52,15 +52,18 @@ fm_paths_equal_ci() {
 # Given a worktree path we recorded, echo the path string treehouse actually has
 # recorded for that same worktree (so `treehouse return` matches it), or the input
 # unchanged when no better match is found. Prefers an exact match (the healthy,
-# no-drift case), then the same real directory (case-insensitive filesystems alias
-# both spellings to one inode), then a case-only string match (the drift, even when
-# the aliased directory can no longer be resolved). Never fails.
+# no-drift case), then an entry naming the same directory - compared by device and
+# inode (`-ef`), because case-insensitive filesystems alias both spellings to one
+# inode while resolved-path strings do not reliably canonicalize case - then a
+# case-only string match taken only when the entry can no longer be resolved (the
+# drift with the aliased directory gone). An entry that resolves to a DIFFERENT
+# directory - a genuinely distinct worktree on a case-sensitive filesystem - is
+# never matched. Never fails.
 fm_treehouse_registered_path() {
-  local wt=${1:-} root state entry wt_real entry_real ci_match=
+  local wt=${1:-} root state entry ci_match=
   [ -n "$wt" ] || { printf '%s\n' "$wt"; return 0; }
   root="${TREEHOUSE_DIR:-$HOME}/.treehouse"
   [ -d "$root" ] || { printf '%s\n' "$wt"; return 0; }
-  wt_real=$(cd "$wt" 2>/dev/null && pwd -P) || true
   for state in "$root"/*/treehouse-state.json; do
     [ -f "$state" ] || continue
     while IFS= read -r entry; do
@@ -69,14 +72,12 @@ fm_treehouse_registered_path() {
         printf '%s\n' "$entry"
         return 0
       fi
-      if [ -n "$wt_real" ]; then
-        entry_real=$(cd "$entry" 2>/dev/null && pwd -P) || true
-        if [ -n "$entry_real" ] && [ "$entry_real" = "$wt_real" ]; then
+      if [ -d "$entry" ]; then
+        if [ -d "$wt" ] && [ "$entry" -ef "$wt" ]; then
           printf '%s\n' "$entry"
           return 0
         fi
-      fi
-      if [ -z "$ci_match" ] && fm_paths_equal_ci "$entry" "$wt"; then
+      elif [ -z "$ci_match" ] && fm_paths_equal_ci "$entry" "$wt"; then
         ci_match=$entry
       fi
     done <<EOF

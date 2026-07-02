@@ -49,6 +49,23 @@ test_registered_path_case_drift_returns_recorded() {
   pass "registered-path returns treehouse's own case-variant string on a case-only drift"
 }
 
+test_registered_path_case_drift_existing_dir_returns_recorded() {
+  local home wt recorded got
+  home="$TMP_ROOT/drift-live"
+  # The worktree exists on disk; treehouse recorded a case-variant spelling. On a
+  # case-insensitive filesystem both spellings alias one directory (same inode);
+  # on a case-sensitive one the recorded spelling does not resolve. Either way the
+  # recorded string must come back so `treehouse return` matches it.
+  wt="$home/pool/1/myapp"
+  recorded="$home/pool/1/MyApp"
+  mkdir -p "$wt"
+  seed_state "$home" "$recorded"
+  got=$(TREEHOUSE_DIR="$home" fm_treehouse_registered_path "$wt")
+  [ "$got" = "$recorded" ] \
+    || fail "drift-live: expected treehouse's recorded string '$recorded', got '$got'"
+  pass "registered-path reconciles a case-variant spelling of an existing worktree"
+}
+
 test_registered_path_no_match_falls_back() {
   local home wt got
   home="$TMP_ROOT/nomatch"
@@ -57,6 +74,26 @@ test_registered_path_no_match_falls_back() {
   got=$(TREEHOUSE_DIR="$home" fm_treehouse_registered_path "$wt")
   [ "$got" = "$wt" ] || fail "no-match: expected fallback to input '$wt', got '$got'"
   pass "registered-path falls back to the input path when nothing matches"
+}
+
+test_registered_path_case_equal_distinct_dir_not_matched() {
+  local home wt other got
+  home="$TMP_ROOT/distinct"
+  mkdir -p "$home/probe_a"
+  if [ -e "$home/PROBE_A" ]; then
+    pass "distinct-dir test skipped (case-insensitive filesystem)"
+    return 0
+  fi
+  # Case-sensitive filesystem: a case-variant sibling is a genuinely different
+  # directory; the ci fallback must never hand it to `treehouse return --force`.
+  wt="$home/pool/1/myapp"
+  other="$home/pool/1/MyApp"
+  mkdir -p "$wt" "$other"
+  seed_state "$home" "$other"
+  got=$(TREEHOUSE_DIR="$home" fm_treehouse_registered_path "$wt")
+  [ "$got" = "$wt" ] \
+    || fail "distinct-dir: expected fallback to input '$wt', got '$got'"
+  pass "registered-path never latches onto a case-equal but distinct real directory"
 }
 
 test_registered_path_no_state_root_falls_back() {
@@ -123,7 +160,7 @@ test_clear_index_lock_live_holder_kept() {
   lock=$(printf '%s\n' "$out" | sed -n 2p)
   # Hold the lock open with a live background process, then wait until lsof can see
   # the open fd before asserting, so the check is deterministic rather than timing.
-  ( exec 9>"$lock"; sleep 5 ) &
+  ( exec 9>"$lock"; sleep 30 ) &
   holder=$!
   local waited=0
   while [ "$waited" -lt 30 ]; do
@@ -144,7 +181,9 @@ test_clear_index_lock_live_holder_kept() {
 
 test_registered_path_exact_match_returns_input
 test_registered_path_case_drift_returns_recorded
+test_registered_path_case_drift_existing_dir_returns_recorded
 test_registered_path_no_match_falls_back
+test_registered_path_case_equal_distinct_dir_not_matched
 test_registered_path_no_state_root_falls_back
 test_clear_stale_index_lock_no_lock_refuses
 test_clear_stale_index_lock_stale_cleared
