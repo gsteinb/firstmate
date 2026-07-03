@@ -8,8 +8,9 @@
 # absent store is a clean no-op, intermediate dirs are created in a fresh worktree,
 # symlinked store entries are followed to their targets, every seeded path is
 # registered in the worktree's local git exclude (idempotently, and as a silent
-# no-op for a non-git directory), and fm-spawn wires the seed in for a ship spawn
-# (and never for a secondmate).
+# no-op for a non-git directory), a seed path the project already tracks is
+# skipped with a warning and left unmodified, and fm-spawn wires the seed in for
+# a ship spawn (and never for a secondmate).
 set -u
 
 # shellcheck source=tests/lib.sh
@@ -124,6 +125,34 @@ test_seed_registers_git_exclude() {
   pass "seed_worktree: seeded paths are excluded from git status, idempotently"
 }
 
+# --- helper: a seed path the project already tracks is skipped --------------
+
+test_seed_skips_tracked_path() {
+  local seed wt excl out
+  seed="$TMP_ROOT/seed-tracked/loanova"
+  wt="$TMP_ROOT/wt-tracked"
+  mkdir -p "$seed"
+  printf 'SEED=secret\n' > "$seed/config.yml"
+  git init -q -b main "$wt"
+  git -C "$wt" -c user.name=t -c user.email=t@t commit -q --allow-empty -m init
+  printf 'TRACKED=original\n' > "$wt/config.yml"
+  git -C "$wt" add config.yml
+  git -C "$wt" -c user.name=t -c user.email=t@t commit -q -m "track config.yml"
+
+  out=$(seed_worktree "$seed" "$wt" 2>&1)
+
+  assert_grep "TRACKED=original" "$wt/config.yml" "tracked file content was overwritten by the seed"
+  assert_no_grep "SEED=secret" "$wt/config.yml" "seed content leaked into the tracked file"
+  assert_contains "$out" "config.yml" "tracked-path skip did not warn"
+  assert_contains "$out" "tracked" "tracked-path skip warning did not mention it is tracked"
+  excl=$(git -C "$wt" rev-parse --git-path info/exclude)
+  case "$excl" in /*) ;; *) excl="$wt/$excl" ;; esac
+  assert_no_grep '/config.yml' "$excl" "tracked path was wrongly registered in git exclude"
+  [ -z "$(git -C "$wt" status --porcelain)" ] || \
+    fail "seeding over a tracked path dirtied the worktree: $(git -C "$wt" status --porcelain)"
+  pass "seed_worktree: a project-tracked seed path is skipped with a warning and left unmodified"
+}
+
 # --- fm-spawn wiring: a ship spawn seeds; a secondmate spawn does not -------
 
 # A fake tmux that reports FM_FAKE_PANE_PATH as the post-`treehouse get` pane cwd,
@@ -216,5 +245,6 @@ test_seed_absent_is_noop
 test_seed_creates_intermediate_dirs
 test_seed_follows_symlinked_sources
 test_seed_registers_git_exclude
+test_seed_skips_tracked_path
 test_spawn_seeds_ship_worktree
 test_spawn_without_store_is_unchanged

@@ -46,10 +46,13 @@ seed_exclude_path() {  # <worktree> <rel>
 # needed. Symlinked store entries are followed to their targets, so a captain may
 # symlink the real local file into the store. Each seeded path is registered in
 # the worktree's local git exclude (seed_exclude_path) so it never appears
-# untracked even when the project's .gitignore does not cover it. A missing or
-# empty <seed_dir> is a silent, clean no-op (the common case). Best-effort by
-# design: a copy failure warns to stderr and continues so a seed hiccup never
-# blocks dispatch. Always returns 0.
+# untracked even when the project's .gitignore does not cover it. A seed path the
+# project already tracks is skipped (with a warning) and never copied or
+# excluded: exclude has no effect on tracked files, so overwriting one would
+# leak the seed's content as a committable modified tracked change and block
+# fm-teardown's dirty-worktree check. A missing or empty <seed_dir> is a silent,
+# clean no-op (the common case). Best-effort by design: a copy failure warns to
+# stderr and continues so a seed hiccup never blocks dispatch. Always returns 0.
 seed_worktree() {  # <seed_dir> <worktree>
   local seed_dir=$1 wt=$2 src rel dest
   seed_dir=${seed_dir%/}
@@ -62,6 +65,10 @@ seed_worktree() {  # <seed_dir> <worktree>
     [ -n "$src" ] || continue
     rel=${src#"$seed_dir"/}
     dest="$wt/$rel"
+    if git -C "$wt" ls-files --error-unmatch "$rel" >/dev/null 2>&1; then
+      echo "fm-seed: '$rel' is tracked by the project; skipping seed to avoid overwriting tracked content" >&2
+      continue
+    fi
     if { mkdir -p "$(dirname "$dest")" && cp -p "$src" "$dest"; }; then
       seed_exclude_path "$wt" "$rel"
     else
