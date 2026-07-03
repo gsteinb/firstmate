@@ -1,4 +1,4 @@
-# Acme Architecture
+# Demo Architecture
 
 Missing the fm-arch:v1 marker on line 2, so this is not an architecture doc.
 

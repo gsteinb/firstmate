@@ -33,7 +33,7 @@ tree = fm_arch.parse_architecture(valid)
 
 # heading depth = tree depth: root is depth 0, its children depth 1, etc.
 check(tree.depth == 0, "root depth should be 0")
-check(tree.name == "Loanova", "root name should be 'Loanova', got %r" % tree.name)
+check(tree.name == "Linkboard", "root name should be 'Linkboard', got %r" % tree.name)
 names = [c.name for c in tree.children]
 check(names == ["Backend API", "Frontends", "Data & Infrastructure"],
       "top-level components wrong: %r" % names)
@@ -42,17 +42,17 @@ for child in tree.children:
 
 backend = tree.children[0]
 backend_kids = [c.name for c in backend.children]
-check(backend_kids == ["Auth", "Underwriting", "Marketplace"],
+check(backend_kids == ["Auth", "Posts & Votes", "Feed & Ranking"],
       "Backend API children wrong: %r" % backend_kids)
 for gc in backend.children:
     check(gc.depth == 2, "grandchild '%s' should be depth 2" % gc.name)
 
 # diagram extraction: byte-for-byte, correct line count, first block only.
 check(len(tree.diagram) == 6, "root diagram should be 6 lines, got %d" % len(tree.diagram))
-check(tree.diagram[0].startswith("        borrower SPA"),
+check(tree.diagram[0].startswith("         web SPA"),
       "root diagram line 1 not preserved: %r" % tree.diagram[0])
-check("Chi HTTP API" in tree.diagram[1],
-      "root diagram should preserve the Chi HTTP API art verbatim")
+check("API gateway" in tree.diagram[1],
+      "root diagram should preserve the API gateway art verbatim")
 
 # a container node with no diagram parses cleanly with an empty diagram.
 data_infra = tree.children[2]
@@ -65,26 +65,26 @@ check(backend.code == ["backend/main.go", "backend/internal/", "backend/cmd/"],
 
 # the mandatory v1 marker: a doc missing line-2 marker raises ArchError.
 try:
-    fm_arch._build(["# Acme Architecture", "", "prose"])
+    fm_arch._build(["# Demo Architecture", "", "prose"])
     failed.append("missing v1 marker should raise ArchError")
 except fm_arch.ArchError:
     pass
 
 # a valid two-line minimal doc parses.
-root_min, findings_min = fm_arch._build(["# Acme Architecture", fm_arch.V1_MARKER])
-check(root_min.name == "Acme", "minimal doc root name wrong: %r" % root_min.name)
+root_min, findings_min = fm_arch._build(["# Demo Architecture", fm_arch.V1_MARKER])
+check(root_min.name == "Demo", "minimal doc root name wrong: %r" % root_min.name)
 check(findings_min == [], "minimal doc should have no findings")
 
 # malformed: an unbalanced fence raises ArchError.
 try:
-    fm_arch._build(["# Acme Architecture", fm_arch.V1_MARKER, "", "```text fm-diagram", " art"])
+    fm_arch._build(["# Demo Architecture", fm_arch.V1_MARKER, "", "```text fm-diagram", " art"])
     failed.append("unbalanced fence should raise ArchError")
 except fm_arch.ArchError:
     pass
 
 # malformed: a node with two fm-diagram blocks is a lint error.
 two_diagrams = "\n".join([
-    "# Acme Architecture", fm_arch.V1_MARKER, "",
+    "# Demo Architecture", fm_arch.V1_MARKER, "",
     "## CLI", "",
     "```text fm-diagram", " a", "```", "",
     "```text fm-diagram", " b", "```", "",
@@ -95,7 +95,7 @@ check(any("more than one" in m for m in errs),
 
 # heading-level jump (## then ####) warns but does not hard-error.
 jump = "\n".join([
-    "# Acme Architecture", fm_arch.V1_MARKER, "",
+    "# Demo Architecture", fm_arch.V1_MARKER, "",
     "## A", "", "#### B", "",
 ])
 report = fm_arch.lint_text(jump)
