@@ -1,7 +1,7 @@
-# Acme Architecture
+# Demo Architecture
 <!-- fm-arch:v1 -->
 
-Acme root prose.
+Demo root prose.
 
 ## CLI
 
