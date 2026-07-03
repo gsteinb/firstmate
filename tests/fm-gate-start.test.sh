@@ -81,7 +81,7 @@ run_gate_start() {
   (cd "$src" && env PWD=. PATH="$fakebin:$PATH" FM_GATE_START_TIMEOUT=0 "$GATE_START" "$@" 2>&1)
 }
 
-fm_git_identity
+fm_git_identity fmtest fmtest@example.invalid
 
 # --- happy path: run starts, intent preserved, hook sees an absolute path ----
 
