@@ -35,6 +35,13 @@ For `no-mistakes` projects, seeding initializes only projects newly cloned into 
 After creating a secondmate, move existing main-backlog items that you have judged in-scope with `fm-backlog-handoff.sh <secondmate-id> <item-key>...`; it is idempotent and refuses in-flight items or non-secondmate homes.
 Set `FM_SECONDMATE_CHARTER` to seed from inline charter text when no filled charter brief exists; set `FM_SECONDMATE_SCOPE` when the routing scope should differ from the charter text.
 
+## Worktree seed store (config/worktree-seed/)
+
+A fresh git worktree never carries a project's untracked or gitignored local files, so files like `.env.local` or `backend/.env` that a crewmate needs to build, run, or test the app never reach its worktree.
+Place them under `config/worktree-seed/<project-name>/` (gitignored) laid out at the exact relative paths they should occupy inside the worktree, e.g. `config/worktree-seed/myapp/backend/.env` seeds `<worktree>/backend/.env`.
+At spawn time, `fm-spawn.sh` copies the store into each ship or scout worktree (never a secondmate home), creating intermediate directories, following symlinked sources, skipping any path the project already tracks, and root-anchoring each seeded path in the worktree's local git exclude so seeded secrets never appear untracked or block teardown.
+An absent store is the common case and a silent no-op.
+
 ## FM_HOME
 
 `FM_HOME` selects the operational home for one firstmate instance.

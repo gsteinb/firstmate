@@ -76,6 +76,7 @@ tests/fm-fleet-sync.test.sh               # project clone refresh: safe detached
 tests/fm-tangle-guard.test.sh             # primary-checkout tangle detection and spawn/brief isolation tests
 tests/fm-brief.test.sh                    # no-mistakes ship-brief structured --intent contract (Problem/Solution/Details, verbatim PR Intent); direct-PR, local-only, and scout briefs skip it
 tests/fm-spawn-batch.test.sh              # batch dispatch and FM_HOME project-path scoping tests
+tests/fm-worktree-seed.test.sh            # per-project worktree seeding: helper copy/nest/no-op, symlink-follow, tracked-path skip, root-anchored git-exclude registration, and fm-spawn ship wiring
 tests/fm-update.test.sh                   # fast-forward-only self-update, reread, nudge, dedup, and skip-safety tests
 tests/fm-secondmate-sync.test.sh          # local-HEAD secondmate sync, no-fetch, bootstrap nudge gating, and spawn hook tests
 tests/fm-secondmate-lifecycle-e2e.test.sh # persistent secondmate routing, seeding, backlog handoff, spawn, recovery, teardown, and FM_HOME flow tests
