@@ -28,6 +28,10 @@
 # no-mistakes ship briefs also pin the run's --intent contract: the crewmate
 # writes it in a structured Problem/Solution/Details shape (it becomes the PR's
 # Intent section verbatim), never leaving it to transcript inference.
+# They also have the crewmate start the validation run via bin/fm-gate-start.sh
+# --intent-file (a reliable direct gate push carrying the intent push option;
+# the axi-run starter misfires on fresh branches) and then drive the active
+# run with `no-mistakes axi run`, which reattaches.
 # Scout tasks ignore mode - their deliverable is a report, not a merge.
 # Ship tasks include a project-memory section so durable project-intrinsic
 # learnings can be committed to AGENTS.md through the project's delivery path.
@@ -208,7 +212,13 @@ EOF
 # Definition of done
 The task is complete only when committed on your branch.
 When you believe it is complete, append \`done: {summary}\` to the status file and stop.
-Firstmate will then instruct you to run /no-mistakes to validate and ship a PR.
+Firstmate will then instruct you to validate and ship a PR through no-mistakes.
+
+Start the validation run with the gate-start helper; drive it with \`axi run\`:
+1. Write your structured intent (exact shape below) to a scratch file in the worktree, e.g. \`.fm-intent.md\`. Never commit it.
+2. Start the run: \`$FM_ROOT/bin/fm-gate-start.sh --intent-file .fm-intent.md\`
+   This is THE way to start the run. Do not start it with \`no-mistakes axi run\` or a bare \`git push no-mistakes ...\`: the \`axi run\` starter misfires on every fresh branch (its gate push carries \`PWD=.\`, which poisons the gate hook), and a bare push silently drops your intent. The helper starts the run reliably with your intent attached and confirms it is running.
+3. Drive the run: invoke /no-mistakes and use \`no-mistakes axi run --intent "..."\` - with the run already active it reattaches, and you respond to its gates from there.
 
 You drive no-mistakes by responding to its gates, not by implementing fixes.
 Follow the no-mistakes guidance for the mechanics: it loads when you invoke /no-mistakes, and \`no-mistakes axi run --help\` plus the \`help\` lines in each \`axi\` response are authoritative and version-matched to the installed binary.
