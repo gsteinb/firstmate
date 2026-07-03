@@ -11,6 +11,7 @@ The optional `fm-top` cockpit lives at the repo root (`fm-top.py`, `fm-top-poll.
 | `fm-update.sh`           | Self-update the running firstmate repo and registered secondmate homes with fast-forward-only pulls from origin     |
 | `fm-backlog-handoff.sh`  | Move already-judged in-scope queued backlog items from the main home into a seeded secondmate home                 |
 | `fm-brief.sh`            | Scaffold a ship brief with a worktree-isolation assertion (no-mistakes briefs also pin the structured Problem/Solution/Details `--intent` contract), a report-only scout brief with `--scout`, or a secondmate charter with `--secondmate` |
+| `fm-gate-start.sh`       | Crewmate-run reliable no-mistakes gate-run starter: clear the stale gate ref, push `HEAD` with the base64 `--intent` push option under `env -u PWD` (immune to the `axi run` `PWD=.` hook poisoning), then confirm the run exists before `no-mistakes axi run` reattaches |
 | `fm-ensure-agents-md.sh` | Ensure project `AGENTS.md` is the real memory file and `CLAUDE.md` symlinks to it                                   |
 | `fm-guard.sh`            | Warn when the primary checkout is tangled, when queued wakes are pending, or when a stale or missing watcher needs a prominent banner |
 | `fm-home-seed.sh`        | Lease/provision a secondmate home transactionally, clone projects, initialize gates, and maintain `data/secondmates.md` |
