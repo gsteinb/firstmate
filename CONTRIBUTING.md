@@ -74,7 +74,8 @@ tests/fm-bootstrap.test.sh                # bootstrap dependency and feature-pro
 tests/fm-grok-harness.test.sh             # grok adapter spawn hook, token guard, teardown cleanup, and session-lock detection tests
 tests/fm-fleet-sync.test.sh               # project clone refresh: safe detached recovery, STUCK drift reports, benign skips, and bootstrap relay
 tests/fm-tangle-guard.test.sh             # primary-checkout tangle detection and spawn/brief isolation tests
-tests/fm-brief.test.sh                    # no-mistakes ship-brief structured --intent contract (Problem/Solution/Details, verbatim PR Intent); direct-PR, local-only, and scout briefs skip it
+tests/fm-brief.test.sh                    # no-mistakes ship-brief structured --intent contract (Problem/Solution/Details, verbatim PR Intent) and gate-start helper wiring; direct-PR, local-only, and scout briefs skip both
+tests/fm-gate-start.test.sh               # reliable gate-run starter: PWD=. poisoning immunity at the gate hook, stale-ref clear-before-push ordering, base64 intent push-option fidelity, refusal paths, and confirmation-timeout diagnostics
 tests/fm-spawn-batch.test.sh              # batch dispatch and FM_HOME project-path scoping tests
 tests/fm-update.test.sh                   # fast-forward-only self-update, reread, nudge, dedup, and skip-safety tests
 tests/fm-secondmate-sync.test.sh          # local-HEAD secondmate sync, no-fetch, bootstrap nudge gating, and spawn hook tests
