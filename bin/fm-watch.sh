@@ -13,7 +13,10 @@
 #                          is not provably working, unless afk is active
 #   stale: <window>        terminal stale pane, a non-terminal stale whose crew is
 #                          not provably working (surfaced at once), or a provably-
-#                          working stale past the wedge threshold, unless afk active
+#                          working stale past the wedge threshold UNLESS the crew is
+#                          actively validating (an actively-running no-mistakes run
+#                          is held indefinitely, never wedge-escalated), unless afk
+#                          active
 #   check: <script>: <out> per-task check output, always actionable. Covers both
 #                          the *.check.sh polls (PR health: merge / conflict / red)
 #                          and the failed-run reconciliation (a run whose outcome
@@ -487,8 +490,10 @@ EOF
           # Absorb-only-when-provably-working, decided once per distinct stale hash
           # (the costly run-step read runs only on first sight, never every poll):
           #   - provably working: an actively-running pipeline legitimately sits on a
-          #     static pane (e.g. waiting on CI), so absorb and start the wedge timer
-          #     so a genuinely frozen run still escalates past STALE_ESCALATE_SECS;
+          #     static pane (e.g. waiting on CI), so absorb and start the wedge timer.
+          #     Past STALE_ESCALATE_SECS the timer re-reads the crew: an actively-
+          #     validating run is HELD (never wedge-escalated, no matter how long it
+          #     stays quiet), while a crew that has since stopped validating escalates;
           #   - NOT provably working: no running pipeline, idle pane, no busy
           #     signature - the crew has STOPPED. Surface immediately so firstmate
           #     peeks (it may be done via an interactive menu that wrote no done:
@@ -515,9 +520,24 @@ EOF
               *)
                 age=$(( $(date +%s) - since ))
                 if [ "$age" -ge "$STALE_ESCALATE_SECS" ]; then
-                  fm_wake_append stale "$w" "stale: $w (idle ${age}s, possible wedge)" || exit 1
-                  rm -f "$ssf"
-                  wake "stale: $w (idle ${age}s, possible wedge)"
+                  # Wedge-escalate EXEMPTION for an actively-validating crew: a crew
+                  # whose no-mistakes run step is actively running (validating/
+                  # running/fixing/ci) is legitimately quiet for many minutes, so a
+                  # static pane is NOT a wedge. Hold it - reset the timer and keep
+                  # absorbing - no matter how long the run stays quiet, instead of
+                  # firing a false "possible wedge" wake. Only a crew that is NOT
+                  # actively validating (a stopped/finished/failed run, or a
+                  # pane-only crew gone idle) escalates as a real possible wedge past
+                  # the threshold. The costly run-step read runs only here, at most
+                  # once per threshold window, never on every poll.
+                  if crew_is_actively_validating "$(window_to_task "$w")"; then
+                    date +%s > "$ssf"
+                    triage_log "held non-terminal stale wedge-escalate (actively validating): $w (idle ${age}s)"
+                  else
+                    fm_wake_append stale "$w" "stale: $w (idle ${age}s, possible wedge)" || exit 1
+                    rm -f "$ssf"
+                    wake "stale: $w (idle ${age}s, possible wedge)"
+                  fi
                 fi
                 ;;
             esac
