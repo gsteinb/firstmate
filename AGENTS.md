@@ -86,7 +86,9 @@ state/               volatile runtime signals; gitignored
   <id>.turn-ended    touched by turn-end hooks
   <id>.grok-turnend-token   firstmate-owned grok hook registry token for the task; removed by teardown
   <id>.meta          written by fm-spawn: window=, worktree=, project=, harness=, kind=, mode=, yolo=; kind=secondmate also records home= and projects= (fm-pr-check appends pr= and verified pr_head= when available)
-  <id>.check.sh      optional slow poll you write per task (e.g. merged-PR check)
+  <id>.check.sh      optional slow poll you write per task (e.g. the fm-pr-check PR-health poll)
+  <id>.pr-health     last PR-health category (merged|conflicted|red|clean) persisted by the poll for edge-triggering; removed by teardown
+  <id>.run-state-seen  last run state the watcher saw for edge-triggering the failed-run wake; removed by teardown
   .wake-queue        durable queued wakes: epoch<TAB>seq<TAB>kind<TAB>key<TAB>payload
   .afk               durable away-mode flag; present = sub-supervisor may inject escalations (set by /afk, cleared on user return)
   .watch.lock .wake-queue.lock watcher singleton and queue serialization locks
@@ -404,8 +406,18 @@ The fields below name the run-step states and outcomes it reads from `no-mistake
 ### PR ready
 
 For PR-based ship tasks, the ready signal depends on mode: `no-mistakes` reports `done: PR <url> checks green` after CI is green, while `direct-PR` reports `done: PR <url>` after opening the PR.
-Run `bin/fm-pr-check.sh <id> <PR url>` - it records `pr=` and a verified `pr_head=` when available in the task's meta and arms the watcher's merge poll.
+Run `bin/fm-pr-check.sh <id> <PR url>` - it records `pr=` and a verified `pr_head=` when available in the task's meta and arms the watcher's PR-health poll.
+**Verify mergeable state before you call a PR ready, not just green CI.**
+A PR can show green checks yet be un-mergeable: GitHub reports `mergeStateStatus=DIRTY` (a real merge conflict) independently of the check rollup, so green CI alone does not mean ready.
+Confirm the PR is actually mergeable (not `dirty`) before relaying it as ready for the captain to merge.
 Tell the captain: the PR's full `https://...` URL (never a bare `#number`; section 9), a one-paragraph summary, and, for `no-mistakes`, the risk level it emitted.
+
+The armed poll watches the whole health of the ready PR, not just its merge, and wakes you once per transition (edge-triggered, so a PR that stays bad does not churn the loop):
+
+- `merged` - the PR merged; proceed to teardown as before.
+- `conflicted: PR needs rebase` - the PR went `mergeStateStatus=DIRTY`. This is the parallel-PR reality: sibling PRs branched off one base collide on shared housekeeping files (project `AGENTS.md`, the no-mistakes `gosec.json` evidence), and each merge dirties the others. Re-engage the task's crewmate to `git fetch origin`, rebase its branch onto the updated default branch, resolve the conflicts, `push --force-with-lease`, and re-confirm `mergeStateStatus=clean` before you call it ready again. After every merge, re-check the remaining sibling PRs and rebase the ones that just went dirty - the rebase cascade continues until the last one lands.
+- `checks-red: <check>` - a required check turned terminally red. Re-engage the crewmate to drive the no-mistakes pipeline's fix flow (respond to its gates; do not have it hand-fix), then re-verify.
+
 (The check contract, for any custom `state/<id>.check.sh` you write yourself: print one line only when firstmate should wake, print nothing otherwise, and finish before `FM_CHECK_TIMEOUT`.)
 
 If the captain says "merge it", run `gh-axi pr merge` yourself; that instruction is the explicit approval. If `yolo=on`, merge a green/approved PR yourself and post the required FYI.
@@ -505,7 +517,7 @@ On wake, in order of cheapness:
    A status line is the wake *event*, not the crewmate's current state; when you need the live state - especially to confirm a `needs-decision`/`blocked` is still real and not already resolved-and-resumed - read it with `bin/fm-crew-state.sh <id>`, which reconciles the authoritative run-step over the possibly-stale log line, and never `tail` the status log as the current-state source.
 3. `stale:` the crewmate stopped without reporting; peek the pane (`bin/fm-peek.sh <window>`) to diagnose.
    If the pane is waiting, looping, confused, or unresponsive, load `stuck-crewmate-recovery`.
-4. `check:` a per-task poll fired (usually a merge); act on it.
+4. `check:` a per-task poll fired; act on it. A PR-ready task's poll reports not just `merged` but also `conflicted: PR needs rebase` (the PR went `mergeStateStatus=DIRTY`) and `checks-red: <check>` (a required check turned red) - see section 7's PR-ready recovery for the rebase-cascade and pipeline-fix responses. A `run-failed` check means a task's validation run failed or was cancelled with no healthy PR delivered; re-engage its crewmate to recover (a failed/cancelled run whose PR is already merged or open-and-clean is a benign monitoring-run cancellation and is absorbed without waking you).
 5. `heartbeat:` a heartbeat wake now reaches you only when the watcher's bash fleet-scan caught a captain-relevant status the per-wake path missed (no-change heartbeats are absorbed in bash, never surfaced), so treat it as "something turned up" and review the whole fleet: read each crewmate's current state with `bin/fm-crew-state.sh <id>` (the cheap first read - it reconciles the authoritative run-step over a possibly-stale status-log line, so a crewmate whose gate you already resolved no longer reads as still parked), peek panes that look off, check PR-ready tasks for merge, reconcile data/backlog.md, then re-arm the watcher.
    Do not report that the fleet is unchanged.
 

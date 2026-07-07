@@ -14,7 +14,10 @@
 #   stale: <window>        terminal stale pane, a non-terminal stale whose crew is
 #                          not provably working (surfaced at once), or a provably-
 #                          working stale past the wedge threshold, unless afk active
-#   check: <script>: <out> per-task check output, always actionable
+#   check: <script>: <out> per-task check output, always actionable. Covers both
+#                          the *.check.sh polls (PR health: merge / conflict / red)
+#                          and the failed-run reconciliation (a run whose outcome
+#                          failed/cancelled with no healthy delivered PR).
 #   heartbeat              fleet-scan backstop found an unsurfaced captain-relevant
 #                          status, unless afk is active
 # For normal supervision, re-arm after each printed reason by running
@@ -36,6 +39,11 @@ mkdir -p "$STATE"
 # has one definition.
 # shellcheck source=bin/fm-classify-lib.sh
 . "$SCRIPT_DIR/fm-classify-lib.sh"
+# Shared PR-health probe/classifier, the SAME library the generated per-task PR
+# poll uses, so the failed-run reconciliation and the poll agree on what a healthy
+# delivered PR is.
+# shellcheck source=bin/fm-pr-health-lib.sh
+. "$SCRIPT_DIR/fm-pr-health-lib.sh"
 
 WATCH_LOCK="$STATE/.watch.lock"
 WATCH_PATH="$SCRIPT_DIR/fm-watch.sh"
@@ -278,6 +286,65 @@ heartbeat_scan_finds_actionable() {
   return 1
 }
 
+# Failed-run reconciliation, folded into the per-task check cadence so there is ONE
+# cheap per-task poll rather than a second loop. A crew whose no-mistakes run
+# transitions to a failed/cancelled OUTCOME must wake firstmate even when it wrote
+# no `failed:` status line - the run-step read (fm-crew-state.sh, authoritative) is
+# the source of truth, not the append-only status log. But a run that is
+# failed/cancelled while its PR is already DELIVERED and HEALTHY (merged, or
+# open+not-dirty+green) is a benign monitoring-run cancellation - the exact case of
+# a delivered PR whose CI-watch run was cancelled - not a recovery-needed failure,
+# so it is absorbed. Edge-triggered per task via .run-state-seen so a real failure
+# fires ONCE, not every cadence. Any `wake`/`exit` here propagates and ends the
+# cycle, exactly like the *.check.sh sweep it sits beside.
+scan_failed_runs() {
+  local meta id kind line state seenf seen pr probe pstate pmerge pfailed reason
+  for meta in "$STATE"/*.meta; do
+    [ -e "$meta" ] || continue
+    kind=$(grep '^kind=' "$meta" | cut -d= -f2- || true)
+    [ -n "$kind" ] || kind=ship
+    # Only ship tasks drive a no-mistakes run of their own worktree; scouts and
+    # secondmates never do, so there is no run outcome to reconcile for them.
+    [ "$kind" = ship ] || continue
+    id=$(basename "$meta"); id="${id%.meta}"
+    line=$("$FM_CREW_STATE_BIN" "$id" 2>/dev/null) || continue
+    case "$line" in state:*) ;; *) continue ;; esac
+    state=${line#state: }; state=${state%% *}
+    seenf="$STATE/$id.run-state-seen"
+    if [ "$state" != failed ]; then
+      # Not failed: remember the current run state so a later transition INTO
+      # failed is an edge that fires. (A blank/unknown read is also remembered.)
+      printf '%s' "$state" > "$seenf" 2>/dev/null || true
+      continue
+    fi
+    # state == failed. Edge-trigger: act only on the transition into failed.
+    seen=$(cat "$seenf" 2>/dev/null || true)
+    [ "$seen" = failed ] && continue
+    printf 'failed' > "$seenf" 2>/dev/null || true
+    # Benign reconciliation: a delivered, healthy PR means this failed/cancelled run
+    # was a monitoring run, not a recovery-needed failure. Absorb it (quiet log,
+    # no wake). Only probe when a PR was actually recorded for the task.
+    pr=$(grep '^pr=' "$meta" | tail -1 | cut -d= -f2- || true)
+    if [ -n "$pr" ]; then
+      probe=$(fm_pr_health_probe "$pr") || probe=""
+      if [ -n "$probe" ]; then
+        pstate=$(printf '%s\n' "$probe" | sed -n '1p')
+        pmerge=$(printf '%s\n' "$probe" | sed -n '2p')
+        pfailed=$(printf '%s\n' "$probe" | sed -n '3p')
+        if fm_pr_is_healthy "$pstate" "$pmerge" "$pfailed"; then
+          triage_log "absorbed failed run with healthy delivered PR: $id"
+          continue
+        fi
+      fi
+    fi
+    # Actionable: a failed run with no healthy PR needs recovery -> wake once.
+    reason="check: run-failed $id: run failed with no healthy PR"
+    fm_wake_append check "run-failed-$id" "$reason" || exit 1
+    touch "$STATE/.last-check"
+    wake "$reason"
+  done
+}
+
 while :; do
   # Self-eviction: if the singleton lock no longer names this process, a second
   # watcher has taken over (e.g. a transient duplicate from a racy arm). Stand
@@ -311,6 +378,9 @@ while :; do
         wake "$reason"
       fi
     done
+    # Same cadence, one more per-task poll: reconcile any run whose OUTCOME failed
+    # but wrote no failed: status line (may wake + exit for a real failure).
+    scan_failed_runs
     touch "$STATE/.last-check"
   fi
 
