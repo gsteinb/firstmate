@@ -154,4 +154,61 @@ assert_no_grep "clickup-audit-w1" "$calls" "a workflow must not be crew-state pr
 assert_no_grep "migrate-w2" "$calls" "a terminal workflow must not be crew-state probed"
 pass "gather(): background workflows are never crew-state probed"
 
+# The cockpit sections the fleet by source so "what is working" reads at a glance:
+# every live-crew row (any sub-status) folds into the crew section, while queued,
+# workflow, and done each get their own, in that fixed order.
+python3 - "$ROOT" <<'PY'
+import importlib.util, os, sys
+root = sys.argv[1]
+spec = importlib.util.spec_from_file_location("fmtop", os.path.join(root, "fm-top.py"))
+m = importlib.util.module_from_spec(spec); spec.loader.exec_module(m)
+bad = []
+
+cases = [
+    ({"kind": "task", "status": "working"}, "crew"),
+    ({"kind": "task", "status": "needs-decision"}, "crew"),
+    ({"kind": "task", "status": "blocked"}, "crew"),
+    ({"kind": "decision", "status": "needs-decision"}, "crew"),
+    ({"kind": "pr-ready", "status": "PR-ready"}, "crew"),
+    ({"kind": "queued", "status": "queued"}, "queued"),
+    ({"kind": "workflow", "status": "workflow"}, "workflow"),
+    ({"kind": "workflow", "status": "done"}, "workflow"),   # terminal WF stays a workflow row
+    ({"kind": "done", "status": "done"}, "done"),
+    ({}, "crew"),                                            # missing kind degrades to crew
+]
+for row, exp in cases:
+    got = m._group(row)
+    if got != exp:
+        bad.append("_group(%r) = %r, expected %r" % (row, got, exp))
+
+# fixed section order and every section fully described for rendering.
+if list(m.GROUP_ORDER) != ["crew", "queued", "workflow", "done"]:
+    bad.append("GROUP_ORDER wrong: %r" % (m.GROUP_ORDER,))
+for g in m.GROUP_ORDER:
+    for tbl in ("GROUP_LABEL", "GROUP_SHORT", "GROUP_STYLE"):
+        if g not in getattr(m, tbl):
+            bad.append("group %r missing from %s" % (g, tbl))
+
+# a stable group sort clusters mixed rows into GROUP_ORDER, dropping none.
+rows = [
+    {"kind": "done", "name": "d1", "status": "done"},
+    {"kind": "task", "name": "c1", "status": "working"},
+    {"kind": "queued", "name": "q1", "status": "queued"},
+    {"kind": "workflow", "name": "w1", "status": "workflow"},
+    {"kind": "task", "name": "c2", "status": "blocked"},
+]
+rows.sort(key=lambda x: m.GROUP_RANK.get(m._group(x), 0))
+ranks = [m.GROUP_RANK[m._group(r)] for r in rows]
+if ranks != sorted(ranks):
+    bad.append("group sort did not cluster by GROUP_ORDER: %r" % ranks)
+if len(rows) != 5:
+    bad.append("group sort dropped rows: %d" % len(rows))
+
+if bad:
+    for b in bad:
+        sys.stderr.write("assert failed: %s\n" % b)
+    sys.exit(1)
+PY
+pass "fleet sections: rows group by source (crew/queued/workflow/done) in fixed order"
+
 pass "fm-top.test.sh: all checks passed"
