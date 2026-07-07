@@ -86,7 +86,9 @@ state/               volatile runtime signals; gitignored
   <id>.turn-ended    touched by turn-end hooks
   <id>.grok-turnend-token   firstmate-owned grok hook registry token for the task; removed by teardown
   <id>.meta          written by fm-spawn: window=, worktree=, project=, harness=, kind=, mode=, yolo=; kind=secondmate also records home= and projects= (fm-pr-check appends pr= and verified pr_head= when available)
-  <id>.check.sh      optional slow poll you write per task (e.g. merged-PR check)
+  <id>.check.sh      optional slow poll you write per task (e.g. the fm-pr-check PR-health poll)
+  <id>.pr-health     last PR-health category (merged|conflicted|red|clean) persisted by the poll for edge-triggering; removed by teardown
+  <id>.run-state-seen  last run state the watcher saw for edge-triggering the failed-run wake; removed by teardown
   .wake-queue        durable queued wakes: epoch<TAB>seq<TAB>kind<TAB>key<TAB>payload
   .afk               durable away-mode flag; present = sub-supervisor may inject escalations (set by /afk, cleared on user return)
   .watch.lock .wake-queue.lock watcher singleton and queue serialization locks
