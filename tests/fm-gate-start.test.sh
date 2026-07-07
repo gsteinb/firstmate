@@ -264,8 +264,52 @@ test_wrong_sha_run_is_not_confirmed() {
   pass "fm-gate-start: a run row at a different sha never confirms the start"
 }
 
+# --- scratch intent file is excluded so it never trips teardown --------------
+
+# fm-teardown refuses on any untracked worktree file that is not one of
+# firstmate's own hook files. The scratch intent file (.fm-intent.md) is never
+# committed, so before this fix it lingered as `?? .fm-intent.md` and forced a
+# manual `rm` on every gate-started teardown. The helper now registers it in
+# .git/info/exclude, so it stays untracked-but-ignored.
+test_intent_file_is_excluded_from_worktree() {
+  local dir="$TMP_ROOT/exclude" log branch=fm/task-e6 short out rc=0 fakebin
+  local dirty excl
+  mkdir -p "$dir"
+  log="$dir/hook.log"
+  make_gate "$dir/gate.git" "$log"
+  make_src "$dir/src" "$branch" "$dir/gate.git"
+  printf '### Problem\nx\n### Solution\n- y\n### Details\nz\n' > "$dir/src/.fm-intent.md"
+  short=$(git -C "$dir/src" rev-parse --short HEAD)
+  fakebin=$(fm_fakebin "$dir")
+  make_nm_stub "$fakebin" "  running   $branch  $short  2026-07-03 10:00"
+
+  out=$(run_gate_start "$dir/src" "$fakebin" --intent-file .fm-intent.md) || rc=$?
+  expect_code 0 "$rc" "fm-gate-start must succeed when excluding the intent file"
+
+  # The intent file must be gone from git's view entirely: no `?? .fm-intent.md`.
+  assert_not_contains "$(git -C "$dir/src" status --porcelain)" ".fm-intent.md" \
+    "the scratch intent file must be untracked-but-ignored, not visible to git status"
+
+  # Prove it directly against teardown's exact cleanliness check: the same grep
+  # fm-teardown.sh uses to detect a dirty worktree must now find nothing.
+  dirty=$(git -C "$dir/src" status --porcelain 2>/dev/null \
+    | grep -vE '^\?\? (\.claude/|\.fm-grok-turnend$)' | head -1 || true)
+  [ -z "$dirty" ] || fail "teardown's dirty check still trips on: $dirty"
+
+  # The exclude entry is anchored to the worktree root and idempotent: a second
+  # start must not append a duplicate line.
+  excl="$dir/src/.git/info/exclude"
+  assert_grep "/.fm-intent.md" "$excl" "intent file must be anchored in .git/info/exclude"
+  out=$(run_gate_start "$dir/src" "$fakebin" --intent-file .fm-intent.md) || rc=$?
+  [ "$(grep -cxF '/.fm-intent.md' "$excl")" -eq 1 ] \
+    || fail "exclude registration must be idempotent (found duplicate lines)"
+
+  pass "fm-gate-start: scratch intent file is excluded, so teardown stays clean"
+}
+
 test_start_preserves_intent_and_survives_poisoned_pwd
 test_stale_gate_ref_is_cleared_first
 test_refusals
 test_timeout_prints_diagnostic
 test_wrong_sha_run_is_not_confirmed
+test_intent_file_is_excluded_from_worktree
