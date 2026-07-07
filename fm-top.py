@@ -2,9 +2,11 @@
 """fm-top - a live, navigable htop-style table of the firstmate fleet.
 
 Sortable table of work + decisions. Navigate, Enter for detail, decide from the
-UI (routes back to firstmate), and flag a crew for a check. The chart shows live
-crewmates plus queued backlog work and background workflows (state/<id>.meta with
-kind=workflow, rendered as rows with no pane). Press 'a' for a per-project
+UI (routes back to firstmate), and flag a crew for a check. The chart is split
+into labelled fleet sections - WORKING FLEET (live crewmates), QUEUED (waiting
+backlog work), WORKFLOWS (background state/<id>.meta with kind=workflow, rendered
+with no pane), and RECENT DONE (a short tail, toggled with 'd') - so "what is
+actually working right now" is obvious at a glance. Press 'a' for a per-project
 Architecture view over each project's ARCHITECTURE.md.
 
 Keys:
@@ -62,6 +64,34 @@ STATUS_META = {
 SORT_RANK = {"needs-decision": 0, "blocked": 1, "failed": 2, "at-gate": 3,
              "with-firstmate": 4, "PR-ready": 5, "working": 6, "workflow": 7,
              "validating": 8, "waiting": 9, "queued": 10, "done": 11}
+
+# The cockpit is sectioned into four coarse fleet groups so "what is actually
+# working right now" reads at a glance instead of being lost in one flat table.
+# Groups are keyed by row SOURCE (kind), never by fine status: every live-crew
+# row - whatever its sub-status - lands in the single WORKING FLEET section.
+GROUP_ORDER = ("crew", "queued", "workflow", "done")
+GROUP_RANK = {g: i for i, g in enumerate(GROUP_ORDER)}
+GROUP_LABEL = {"crew": "WORKING FLEET", "queued": "QUEUED",
+               "workflow": "WORKFLOWS", "done": "RECENT DONE"}
+GROUP_SHORT = {"crew": "working", "queued": "queued",
+               "workflow": "workflows", "done": "done"}
+GROUP_STYLE = {"crew": ("cyan", "●"), "queued": ("grey", "·"),
+               "workflow": ("mag", "⟳"), "done": ("green", "✓")}
+
+
+def _group(row):
+    """Coarse fleet section for a fleet row, keyed by its source (kind) not its
+    fine status. Live crew (task/decision/pr-ready) all fold into 'crew' so the
+    working set is one obvious block; queued, workflow, and done each get their
+    own section. An unknown/missing kind degrades to the working fleet."""
+    k = (row or {}).get("kind")
+    if k == "queued":
+        return "queued"
+    if k == "workflow":
+        return "workflow"
+    if k == "done":
+        return "done"
+    return "crew"
 
 
 def _next_sort(cur_col, cur_rev, key_col):
@@ -479,8 +509,16 @@ def send_check(row):
 
 def once():
     rows = gather()
-    print(f"{'NAME':<20}{'PROJECT':<11}{'STATUS':<16}{'AGE':<6}DESCRIPTION")
-    for r in sorted(rows, key=lambda x: (SORT_RANK.get(x["status"], 9), x["name"])):
+    rows.sort(key=lambda x: (SORT_RANK.get(x["status"], 9), x["name"]))
+    rows.sort(key=lambda x: GROUP_RANK.get(_group(x), 0))   # stable: cluster into sections
+    cur = None
+    for r in rows:
+        g = _group(r)
+        if g != cur:
+            _, glyph = GROUP_STYLE.get(g, ("", " "))
+            print(f"\n{glyph} {GROUP_LABEL.get(g, g.upper())}")
+            print(f"{'NAME':<20}{'PROJECT':<11}{'STATUS':<16}{'AGE':<6}DESCRIPTION")
+            cur = g
         print(f"{r['name']:<20}{r['project']:<11}{r['status']:<16}{_fmt_age(r['age']):<6}{r['desc'][:46]}")
 
 
@@ -613,6 +651,9 @@ def tui(stdscr):
             else:
                 k = cols[sort_col][1]
                 rows.sort(key=lambda x: str(x.get(k, "")).lower(), reverse=sort_rev)
+            # Stable outer sort clusters the rows into fleet sections while
+            # preserving the chosen within-section order (Python sort is stable).
+            rows.sort(key=lambda x: GROUP_RANK.get(_group(x), 0))
             if rows:
                 sel = max(0, min(sel, len(rows) - 1))
             h, w = stdscr.getmaxyx()
@@ -621,7 +662,15 @@ def tui(stdscr):
             if ts == 0.0:
                 stdscr.addnstr(0, 0, " ⚓ FIRSTMATE  loading fleet…", w - 1, pair["cyan"] | curses.A_BOLD)
             elif mode == "list":
-                title = (f" ⚓ FIRSTMATE   {len(rows)} rows   sort:{cols[sort_col][0]}"
+                # Per-section counts drive both the header summary and the
+                # section banners, so the working set is countable at a glance.
+                counts = {}
+                for rr in rows:
+                    g = _group(rr)
+                    counts[g] = counts.get(g, 0) + 1
+                summary = "  ".join(f"{counts[g]} {GROUP_SHORT[g]}"
+                                    for g in GROUP_ORDER if counts.get(g))
+                title = (f" ⚓ FIRSTMATE   {summary or 'fleet empty'}   sort:{cols[sort_col][0]}"
                          f"{'▼' if sort_rev else '▲'}   {time.strftime('%H:%M:%S')} ")
                 stdscr.addnstr(0, 0, title.ljust(w - 1), w - 1, pair["cyan"] | curses.A_BOLD)
                 x, hdr = 0, ""
@@ -632,12 +681,36 @@ def tui(stdscr):
                     hdr += f"{marker}{label:<{width-1}}"
                     x += width
                 stdscr.addnstr(1, 0, hdr.ljust(w - 1), w - 1, curses.A_UNDERLINE | curses.A_BOLD)
+                # Build a display list interleaving non-selectable section
+                # banners with rows; a banner appears whenever the group changes.
+                display, prev = [], None
+                for idx, rr in enumerate(rows):
+                    g = _group(rr)
+                    if g != prev:
+                        display.append(("header", g))
+                        prev = g
+                    display.append(("row", idx))
                 body = h - 3
-                top = max(0, sel - body + 1) if sel >= body else 0
+                # Keep the selected row on screen, counting banner lines toward scroll.
+                sel_line = next((i for i, e in enumerate(display)
+                                 if e[0] == "row" and e[1] == sel), 0)
+                top = max(0, sel_line - body + 1) if sel_line >= body else 0
                 for ri in range(body):
-                    idx = top + ri
-                    if idx >= len(rows):
+                    di = top + ri
+                    if di >= len(display):
                         break
+                    etype, val = display[di]
+                    y = 2 + ri
+                    if etype == "header":
+                        gck, gglyph = GROUP_STYLE.get(val, ("white", " "))
+                        htxt = f" {gglyph} {GROUP_LABEL.get(val, val.upper())} ({counts.get(val, 0)}) "
+                        try:
+                            stdscr.addnstr(y, 0, htxt.ljust(w - 1), w - 1,
+                                           pair[gck] | curses.A_BOLD | curses.A_REVERSE)
+                        except curses.error:
+                            pass
+                        continue
+                    idx = val
                     r = rows[idx]
                     ckey, glyph = STATUS_META.get(r["status"], ("white", " "))
                     base = curses.A_REVERSE if idx == sel else 0
@@ -651,7 +724,7 @@ def tui(stdscr):
                         else:
                             cell, attr = str(r.get(k, "")), base
                         try:
-                            stdscr.addnstr(2 + ri, x, cell[:width-1].ljust(width-1), width-1, attr)
+                            stdscr.addnstr(y, x, cell[:width-1].ljust(width-1), width-1, attr)
                         except curses.error:
                             pass
                         x += width

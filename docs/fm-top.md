@@ -15,12 +15,17 @@ Both honor `FM_HOME`, so they operate on whichever firstmate home that variable 
 
 ## Fleet view (home chart)
 
-The default screen is a sortable table of the whole fleet, not just live crew:
+The default screen is a sortable table of the **whole** fleet, not just live crew.
+To make "what is actually working right now" obvious at a glance, the rows are split into four labelled sections - each with a coloured banner and a live count - shown in this fixed order:
 
-- **live crewmates** (each `state/<id>.meta`), with their reconciled crew-state,
-- **queued backlog work** parsed from `## Queued` in `data/backlog.md` (shown with a `·` glyph and its `blocked-by` dependency as the note),
-- a **recent-done tail** from `## Done` (hidden by default; toggle with `d`), and
-- **background workflows** - any `state/<id>.meta` with `kind=workflow` - rendered as rows with a distinct `⟳` glyph and **no pane** (their status comes from their status file, never a crew-state probe), so a running audit or migration workflow stays visible in the cockpit.
+- **● WORKING FLEET** - **live crewmates** (each `state/<id>.meta`), with their reconciled crew-state. Every live-crew row lands here whatever its sub-status (`working`, `validating`, `needs-decision`, `blocked`, `PR-ready`, …), so the working set is one unbroken block.
+- **· QUEUED** - **queued backlog work** parsed from `## Queued` in `data/backlog.md`, shown with the `queued` status and its `blocked-by` dependency as the note.
+- **⟳ WORKFLOWS** - **background workflows**, any `state/<id>.meta` with `kind=workflow`, rendered with a distinct `⟳` glyph and **no pane** (their status comes from their status file, never a crew-state probe), so a running audit or migration workflow stays visible in the cockpit.
+- **✓ RECENT DONE** - a short tail from `## Done` so finished work does not just vanish. Hidden by default; toggle with `d`.
+
+The title bar summarises the counts (e.g. `3 working  2 queued  1 workflows`) so the size of the working set reads without scanning.
+A section's banner only appears when it has at least one row, so an empty or absent backlog section simply shows nothing.
+Sorting (`1`-`5`, `r`) orders rows **within** each section; the sections themselves always stay in the fixed order above.
 
 | Key         | Action                                             |
 | ----------- | -------------------------------------------------- |
