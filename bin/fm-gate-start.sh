@@ -129,6 +129,42 @@ fi
 git rev-parse --git-dir >/dev/null 2>&1 || fatal "not inside a git repository"
 command -v no-mistakes >/dev/null 2>&1 || fatal "no-mistakes binary not found on PATH"
 
+# Keep the scratch intent file out of git's view. The crewmate's intent file
+# (conventionally .fm-intent.md) is never committed, so it lingers as an
+# untracked file - and fm-teardown refuses on any untracked file that is not one
+# of firstmate's own worktree hook files, forcing a manual `rm` on every
+# gate-started teardown. Register it in the worktree's .git/info/exclude, the
+# same mechanism fm-spawn uses for its turn-end hook files, so it is
+# untracked-but-ignored and trips no cleanliness check. Only --intent-file
+# writes a file inside the worktree; the inline --intent form writes nothing.
+# Idempotent, anchored to the worktree root, and a no-op for a path outside the
+# worktree or when the exclude file cannot be located.
+exclude_worktree_path() {
+  local path=$1 top top_real dir base abs_dir abs rel excl
+  # `env -u PWD pwd -P` throughout: a poisoned PWD=. (the very bug this helper
+  # defends against) makes the bash builtin `pwd -P` echo "." after `cd .`, so
+  # resolve physical paths via the external pwd with PWD unset, exactly as the
+  # gate pushes below do.
+  top=$(git rev-parse --show-toplevel 2>/dev/null) || return 0
+  top_real=$(cd "$top" 2>/dev/null && env -u PWD pwd -P) || return 0
+  dir=$(dirname "$path")
+  base=$(basename "$path")
+  abs_dir=$(cd "$dir" 2>/dev/null && env -u PWD pwd -P) || return 0
+  [ -n "$abs_dir" ] || return 0
+  abs="$abs_dir/$base"
+  case "$abs" in
+    "$top_real"/*) rel=${abs#"$top_real"/} ;;
+    *) return 0 ;;
+  esac
+  excl=$(git rev-parse --git-path info/exclude 2>/dev/null) || return 0
+  [ -n "$excl" ] || return 0
+  mkdir -p "$(dirname "$excl")"
+  grep -qxF "/$rel" "$excl" 2>/dev/null || printf '/%s\n' "$rel" >> "$excl"
+}
+if [ -n "$INTENT_FILE" ]; then
+  exclude_worktree_path "$INTENT_FILE"
+fi
+
 CURRENT=$(git symbolic-ref --quiet --short HEAD || true)
 if [ -z "$BRANCH" ]; then
   [ -n "$CURRENT" ] || fatal "detached HEAD: check out your feature branch (or pass --branch) before starting a gate run"
