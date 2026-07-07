@@ -15,7 +15,8 @@ The optional `fm-top` cockpit lives at the repo root (`fm-top.py`, `fm-top-poll.
 | `fm-ensure-agents-md.sh` | Ensure project `AGENTS.md` is the real memory file and `CLAUDE.md` symlinks to it                                   |
 | `fm-guard.sh`            | Warn when the primary checkout is tangled, when queued wakes are pending, or when a stale or missing watcher needs a prominent banner |
 | `fm-home-seed.sh`        | Lease/provision a secondmate home transactionally, clone projects, initialize gates, and maintain `data/secondmates.md` |
-| `fm-spawn.sh`            | Spawn one task, several `id=repo` pairs, or a persistent secondmate with `--secondmate`; ship/scout spawns require an isolated treehouse worktree, install per-harness turn-end signaling, and secondmate spawns locally sync the home before launch |
+| `fm-spawn.sh`            | Spawn one task, several `id=repo` pairs, or a persistent secondmate with `--secondmate`; ship/scout spawns require an isolated treehouse worktree, seed any per-project local files into it, install per-harness turn-end signaling, and secondmate spawns locally sync the home before launch |
+| `fm-seed-lib.sh`         | Shared worktree-seeding helper sourced by `fm-spawn.sh` and tests: copy a per-project seed store into a fresh worktree, follow symlinked sources, skip project-tracked paths, and root-anchor each seeded path in the worktree's local git exclude |
 | `fm-project-mode.sh`     | Resolve a project's delivery mode and `+yolo` flag from `data/projects.md`                                          |
 | `fm-merge-local.sh`      | Fast-forward a `local-only` project's local default branch after approval                                           |
 | `fm-review-diff.sh`      | Review a crewmate branch against the authoritative base, with optional `--stat` output                              |

@@ -40,9 +40,12 @@ FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
 DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
 PROJECTS="${FM_PROJECTS_OVERRIDE:-$FM_HOME/projects}"
+CONFIG="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"
 SUB_HOME_MARKER=".fm-secondmate-home"
 # shellcheck source=bin/fm-ff-lib.sh
 . "$SCRIPT_DIR/fm-ff-lib.sh"
+# shellcheck source=bin/fm-seed-lib.sh
+. "$SCRIPT_DIR/fm-seed-lib.sh"
 # Skip the watcher guard when re-exec'd for one pair of a batch (FM_SPAWN_NO_GUARD is
 # set by the batch loop below), so the guard runs once for the batch, not once per pair.
 [ -n "${FM_SPAWN_NO_GUARD:-}" ] || "$FM_ROOT/bin/fm-guard.sh" || true
@@ -409,6 +412,16 @@ if [ "$KIND" != secondmate ]; then
     echo "error: treehouse get did not yield an isolated worktree (resolved '$WT'; worktree root '${wt_top:-none}'; primary '$PROJ_ABS'); refusing to launch to avoid tangling the primary checkout. Inspect window $T" >&2
     exit 1
   fi
+
+  # Worktree seeding: a fresh git worktree never carries the project's untracked/
+  # gitignored local files (env, secrets, local config), yet they may be needed to
+  # build/run/test the app. Copy any per-project seed store into the worktree at the
+  # matching relative paths, registering each seeded path in the worktree's local
+  # git exclude so it never appears untracked (see fm-seed-lib.sh and AGENTS.md
+  # section 2). Silent no-op when no store exists - the common case - and
+  # best-effort otherwise: a seed hiccup warns but never aborts the spawn. Ship and
+  # scout only; this whole block is already inside the KIND != secondmate region.
+  seed_worktree "$CONFIG/worktree-seed/$(basename "$PROJ_ABS")" "$WT" || true
 fi
 
 # Per-harness turn-end hook: a file that touches state/<id>.turn-ended when the
@@ -418,11 +431,7 @@ mkdir -p "$STATE"
 STATE_REAL=$(cd "$STATE" && pwd -P)
 TURNEND="$STATE_REAL/$ID.turn-ended"
 exclude_path() {
-  local rel=$1 EXCL
-  EXCL=$(git -C "$WT" rev-parse --git-path info/exclude 2>/dev/null || true)
-  [ -n "$EXCL" ] || return 0
-  mkdir -p "$(dirname "$EXCL")"
-  grep -qxF "$rel" "$EXCL" 2>/dev/null || echo "$rel" >> "$EXCL"
+  seed_exclude_path "$WT" "$1"
 }
 if [ "$KIND" != secondmate ]; then
   case "$HARNESS" in

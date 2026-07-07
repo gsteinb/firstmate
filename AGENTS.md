@@ -73,6 +73,7 @@ bin/                 helper scripts, committed; read each script's header before
 fm-top.py            optional local curses fleet cockpit, committed; a live fleet table plus a per-project Architecture view (see docs/fm-top.md)
 fm-top-poll.sh       fm-top's decision-inbox poll, committed; routes a decision made in fm-top back to firstmate
 config/crew-harness  crewmate harness override; LOCAL, gitignored; absent or "default" = same as firstmate
+config/worktree-seed/<project>/  per-project untracked files (env/secrets/local config) laid out at worktree-relative paths; LOCAL, gitignored; auto-seeded into each crewmate worktree at spawn (section 7)
 data/                personal fleet records; LOCAL, gitignored as a whole
   backlog.md         task queue, dependencies, history
   captain.md         captain's curated personal preferences and working style; LOCAL, gitignored, and canonical even if harness memory mirrors it
@@ -348,6 +349,7 @@ For `kind=secondmate`, the same script launches in the registered or explicit fi
 
 For ship and scout tasks, the script creates the window (in your current tmux session, or a dedicated `firstmate` session when you are outside tmux), runs `treehouse get`, waits for the worktree subshell, asserts the resolved worktree is a genuine isolated worktree distinct from the primary checkout (aborting the spawn otherwise, to prevent the worktree tangle of section 8), installs the turn-end hook, records `state/<id>.meta`, and launches the agent with the brief.
 For grok, the turn-end hook is one firstmate-owned global hook under `$GROK_HOME/hooks/`, or `~/.grok/hooks/` when `GROK_HOME` is unset, activated only when the worktree holds the per-task `.fm-grok-turnend` token pointer that matches `state/<id>.grok-turnend-token`; teardown removes the pointer and token.
+After the isolation guard passes, `fm-spawn` also seeds any `config/worktree-seed/<project>/` store into the new ship/scout worktree at its matching relative paths, so a project's gitignored local files (env, secrets, local config) reach the crewmate; it is a silent no-op when no store exists and best-effort otherwise (a seed hiccup warns but never blocks the spawn).
 For `kind=secondmate`, the script creates the same kind of window but starts directly in the persistent home.
 Before launching a secondmate, the script fast-forwards its home worktree to firstmate's own current default-branch commit, so a freshly spawned or recovery-respawned secondmate always starts on firstmate's current version.
 This is a purely local fast-forward of tracked files - never a fetch from origin, and never touching the gitignored operational dirs - so the secondmate's backlog, projects, and any prior in-flight work are untouched; a dirty, diverged, or in-flight home is left as-is and launches unchanged.

@@ -6,6 +6,7 @@ data/
 .DS_Store
 .env
 config/crew-harness
+config/worktree-seed/
 
 # Python bytecode from the now-tracked fm-top.py / bin/fm_arch.py
 __pycache__/

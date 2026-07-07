@@ -77,6 +77,7 @@ tests/fm-tangle-guard.test.sh             # primary-checkout tangle detection an
 tests/fm-brief.test.sh                    # no-mistakes ship-brief structured --intent contract (Problem/Solution/Details, verbatim PR Intent) and gate-start helper wiring; direct-PR, local-only, and scout briefs skip both
 tests/fm-gate-start.test.sh               # reliable gate-run starter: PWD=. poisoning immunity at the gate hook, stale-ref clear-before-push ordering, base64 intent push-option fidelity, scratch intent-file exclusion so teardown stays clean, refusal paths, and confirmation-timeout diagnostics
 tests/fm-spawn-batch.test.sh              # batch dispatch and FM_HOME project-path scoping tests
+tests/fm-worktree-seed.test.sh            # per-project worktree seeding: helper copy/nest/no-op, symlink-follow, tracked-path skip, root-anchored git-exclude registration, and fm-spawn ship wiring
 tests/fm-update.test.sh                   # fast-forward-only self-update, reread, nudge, dedup, and skip-safety tests
 tests/fm-secondmate-sync.test.sh          # local-HEAD secondmate sync, no-fetch, bootstrap nudge gating, and spawn hook tests
 tests/fm-secondmate-lifecycle-e2e.test.sh # persistent secondmate routing, seeding, backlog handoff, spawn, recovery, teardown, and FM_HOME flow tests
