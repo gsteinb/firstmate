@@ -27,6 +27,7 @@ The optional `fm-top` cockpit lives at the repo root (`fm-top.py`, `fm-top-poll.
 | `fm-tangle-lib.sh`       | Shared default-branch resolution and primary-checkout tangle classification sourced by bootstrap and guard         |
 | `fm-ff-lib.sh`           | Shared guarded fast-forward helper for `/updatefirstmate` origin pulls and no-fetch local secondmate syncs         |
 | `fm-tasks-axi-lib.sh`    | Shared `tasks-axi` compatibility probe sourced by bootstrap and teardown                                            |
+| `fm-treehouse-lib.sh`    | Robust `treehouse return` for teardown: reconciles a case-only worktree-path drift to treehouse's own recorded string and clears a provably stale git `index.lock` before retrying, without weakening any dirty/landed safety check |
 | `fm-wake-drain.sh`       | Atomically drain queued watcher wakes before handling supervision work, then run the watcher-liveness guard         |
 | `fm-wake-lib.sh`         | Shared durable wake queue and portable lock helpers sourced by the watcher, drain, arm, guard, and daemon          |
 | `fm-classify-lib.sh`     | Shared captain-relevant wake classifier sourced by the watcher and daemon, plus the watcher's provably-working predicate |

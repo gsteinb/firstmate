@@ -83,6 +83,7 @@ The `data/secondmates.md` line schema and the secondmate environment variables a
 Teardown is fail-closed for ship worktrees: dirty worktrees refuse, and committed work must be landed before the worktree is returned.
 Landed work is accepted when `HEAD` is reachable from any remote-tracking branch, when a PR for the current `HEAD` is merged, or when the worktree content is already present in the freshly fetched default branch.
 That content check lets a squash-merged PR whose head branch was deleted tear down cleanly without using `--force`; `local-only` work instead tears down after the approved local default-branch merge or after the branch is pushed to any remote.
+Returning the worktree to its pool reconciles a case-only path drift to treehouse's own recorded string and clears a provably stale git `index.lock` before retrying, so a case-insensitive-filesystem mismatch or a leftover lock no longer false-fails the return without weakening any dirty or landed check.
 
 ## Project memory belongs to projects
 

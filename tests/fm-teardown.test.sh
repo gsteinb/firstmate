@@ -228,12 +228,48 @@ SH
 }
 
 # Run teardown with PATH mocking. Args: case_dir [extra args...]
+# TREEHOUSE_DIR is pinned to the case dir so the worktree-path reconciliation only
+# ever consults this case's fixture pool state, never the host's real ~/.treehouse.
 run_teardown() {
   local case_dir=$1; shift
   FM_ROOT_OVERRIDE="$ROOT" \
   FM_STATE_OVERRIDE="$case_dir/state" \
+  TREEHOUSE_DIR="$case_dir" \
   PATH="$case_dir/fakebin:$PATH" \
     "$TEARDOWN" task-x1 "$@"
+}
+
+# Replace the trivial always-succeed treehouse mock with one that emulates the real
+# tool's path matching: `return --force <path>` succeeds only when <path> is an
+# exact string in a pool state file under $TREEHOUSE_DIR/.treehouse, else it fails
+# with the real "not managed by treehouse" message. Args: case_dir
+add_strict_treehouse_mock() {
+  local case_dir=$1
+  cat > "$case_dir/fakebin/treehouse" <<'SH'
+#!/usr/bin/env bash
+if [ "${1:-}" = return ]; then
+  path=${!#}
+  for st in "${TREEHOUSE_DIR:-$HOME}"/.treehouse/*/treehouse-state.json; do
+    [ -f "$st" ] || continue
+    grep -Fq "\"$path\"" "$st" && exit 0
+  done
+  echo "worktree $path is not managed by treehouse" >&2
+  exit 1
+fi
+exit 0
+SH
+  chmod +x "$case_dir/fakebin/treehouse"
+}
+
+# Record the worktree in a fixture pool state under a case-VARIANT of its real path,
+# reproducing treehouse's case-insensitive-FS drift (recorded lowercase vs. the
+# on-disk capitalized dir). Args: case_dir variant-path
+write_treehouse_state_with_path() {
+  local case_dir=$1 path=$2
+  mkdir -p "$case_dir/.treehouse/pool"
+  cat > "$case_dir/.treehouse/pool/treehouse-state.json" <<JSON
+{ "worktrees": [ { "name": "1", "path": "$path" } ] }
+JSON
 }
 
 test_local_only_fork_remote_allows() {
@@ -529,6 +565,34 @@ test_local_only_force_overrides_unpushed() {
   pass "local-only worktree with unpushed work is torn down under --force (escape hatch)"
 }
 
+test_treehouse_case_drift_return_reconciled() {
+  local case_dir rc variant
+  case_dir=$(make_case th-case-drift)
+  write_meta "$case_dir" no-mistakes ship
+  wt_commit "$case_dir" "shippable work"
+  # Land it on origin so the safety check allows teardown; the return step is what
+  # this case exercises.
+  git -C "$case_dir/wt" push -q origin fm/task-x1
+  git -C "$case_dir/project" fetch -q origin
+  # treehouse recorded the worktree under a case-only variant of the recorded path
+  # (macOS case-insensitive-FS drift). A strict mock, like the real tool, only
+  # returns a worktree whose exact recorded string it is handed.
+  variant="$case_dir/WT"
+  add_strict_treehouse_mock "$case_dir"
+  write_treehouse_state_with_path "$case_dir" "$variant"
+
+  set +e
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr"
+  rc=$?
+  set -e
+
+  expect_code 0 "$rc" "th-case-drift: teardown should reconcile the case-drifted worktree path and return it"
+  ! grep -q "not managed by treehouse" "$case_dir/stderr" \
+    || fail "th-case-drift: treehouse return still saw a case mismatch"
+  pass "teardown reconciles a case-only treehouse path drift and returns the worktree"
+}
+
+test_treehouse_case_drift_return_reconciled
 test_local_only_fork_remote_allows
 test_teardown_prompts_tasks_axi_done_when_compatible
 test_local_only_truly_unpushed_refuses
