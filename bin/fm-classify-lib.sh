@@ -106,6 +106,28 @@ crew_is_provably_working() {  # <id>
   esac
 }
 
+# 0 if crew <id> is provably working SPECIFICALLY because its no-mistakes run step
+# is actively running (state working from source run-step: a running/fixing/ci
+# step). This is the NARROWER twin of crew_is_provably_working, used only for the
+# wedge-escalate exemption: such a run is legitimately quiet for many minutes (a
+# CI wait, a long test or lint pass), so the watcher must not flag its idle pane as
+# a possible wedge no matter how long the run stays quiet. A pane-busy-only crew
+# (source pane) is deliberately NOT covered here - a genuinely wedged pane-only
+# crew must still escalate; only an actively-running no-mistakes step is exempt.
+# Same bounded fm-crew-state.sh read as crew_is_provably_working, so callers run it
+# only on the already-stale path, at most once per threshold window. FM_CREW_STATE_BIN
+# lets tests stub the verdict.
+crew_is_actively_validating() {  # <id>
+  local id=$1 line state src
+  [ -n "$id" ] || return 1
+  line=$("$FM_CREW_STATE_BIN" "$id" 2>/dev/null) || true
+  case "$line" in state:*) ;; *) return 1 ;; esac
+  state=${line#state: }; state=${state%% *}
+  [ "$state" = working ] || return 1
+  src=${line#*source: }; src=${src%% *}
+  [ "$src" = run-step ]
+}
+
 # 0 (benign/absorb) if EVERY task referenced by a no-verb "signal:" wake is provably
 # working; 1 (actionable/surface) if any is not, or no task can be resolved. Pass the
 # same space-separated file list as signal_reason_is_actionable. Files are mapped to

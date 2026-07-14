@@ -164,6 +164,38 @@ test_crew_is_provably_working_classifier() {
   pass "crew_is_provably_working: only working+run-step/pane is provable; idle/finished/parked/failed/unknown surface"
 }
 
+# crew_is_actively_validating: the NARROWER wedge-exemption twin. Benign (exempt from
+# wedge-escalate) ONLY when the crew is working from source run-step - an actively-
+# running no-mistakes step. A busy pane (source pane) is deliberately NOT exempt here
+# (a genuinely wedged pane-only crew must still escalate), and every non-working or
+# non-run-step verdict surfaces as a possible wedge.
+test_crew_is_actively_validating_classifier() {
+  local dir fakebin
+  dir=$(make_case actively-validating); fakebin="$dir/fakebin"
+  export FM_CREW_STATE_BIN="$fakebin/fm-crew-state.sh"
+  export FM_FAKE_CREW_STATE
+  FM_FAKE_CREW_STATE='state: working · source: run-step · validating (running)'
+  crew_is_actively_validating a || fail "active run-step not treated as actively validating"
+  FM_FAKE_CREW_STATE='state: working · source: run-step · ci running'
+  crew_is_actively_validating a || fail "ci-running run-step not treated as actively validating"
+  FM_FAKE_CREW_STATE='state: working · source: pane · harness busy'
+  ! crew_is_actively_validating a || fail "busy pane wrongly treated as actively validating (must still be wedge-eligible)"
+  FM_FAKE_CREW_STATE='state: working · source: status-log · working: compiling'
+  ! crew_is_actively_validating a || fail "stale status-log working: wrongly treated as actively validating"
+  FM_FAKE_CREW_STATE='state: parked · source: run-step · parked at review'
+  ! crew_is_actively_validating a || fail "parked run wrongly treated as actively validating"
+  FM_FAKE_CREW_STATE='state: done · source: run-step · checks green'
+  ! crew_is_actively_validating a || fail "finished run wrongly treated as actively validating"
+  FM_FAKE_CREW_STATE='state: failed · source: run-step · run failed'
+  ! crew_is_actively_validating a || fail "failed run wrongly treated as actively validating"
+  FM_FAKE_CREW_STATE='state: unknown · source: none · worktree gone'
+  ! crew_is_actively_validating a || fail "unknown crew wrongly treated as actively validating"
+  FM_FAKE_CREW_STATE='state: working · source: run-step · x'
+  ! crew_is_actively_validating "" || fail "empty id wrongly treated as actively validating"
+  unset FM_FAKE_CREW_STATE
+  pass "crew_is_actively_validating: only working+run-step is exempt; pane/idle/parked/done/failed/unknown stay wedge-eligible"
+}
+
 # signal_crew_provably_working: a no-verb "signal:" wake is benign ONLY when EVERY
 # task it references is provably working; if any crew has stopped, or no task can be
 # resolved, it surfaces. Files map to ids by stripping .status / .turn-ended.
@@ -312,15 +344,17 @@ test_terminal_stale_surfaced() {
   pass "a stale pane sitting on a terminal status is surfaced (queue + exit)"
 }
 
-# --- non-terminal stale, crew provably working: absorbed, then wedge-escalated ---
-# A provably-working crew (an actively-running pipeline) legitimately sits on a
-# static pane (e.g. waiting on CI), so a non-terminal stale is absorbed and only
-# the wedge timer eventually escalates it - the low-churn behavior preserved.
+# --- non-terminal stale, crew ACTIVELY VALIDATING: absorbed AND held (no wedge) ---
+# A crew whose no-mistakes run step is actively running (validating/running/fixing/
+# ci) legitimately sits on a static pane for many minutes (a CI wait, a long
+# test/lint pass), so a non-terminal stale is absorbed on first sight AND held
+# indefinitely past the wedge threshold - never a false "possible wedge" wake. This
+# is the fix that removes the need for the FM_STALE_ESCALATE_SECS=604800 workaround.
 
-test_nonterminal_stale_provably_working_absorbed_then_escalated() {
-  local dir state fakebin out drain_out capture_file window key pane_hash sig pid
-  dir=$(make_case nonterminal-stale-working); state="$dir/state"; fakebin="$dir/fakebin"
-  out="$dir/watch.out"; drain_out="$dir/drain.out"; capture_file="$dir/pane.txt"
+test_nonterminal_stale_validating_absorbed_and_held() {
+  local dir state fakebin out capture_file window key pane_hash sig pid since
+  dir=$(make_case nonterminal-stale-validating); state="$dir/state"; fakebin="$dir/fakebin"
+  out="$dir/watch.out"; capture_file="$dir/pane.txt"
   window="test:fm-quiet"
   printf 'idle building output' > "$capture_file"
   printf 'window=%s\nkind=ship\n' "$window" > "$state/quiet.meta"
@@ -332,7 +366,7 @@ test_nonterminal_stale_provably_working_absorbed_then_escalated() {
   pane_hash=$(hash_text "idle building output")
   printf '%s' "$pane_hash" > "$state/.hash-$key"
   printf '1\n' > "$state/.count-$key"
-  # The crew's pipeline is actively running: a static pane is normal (waiting on CI).
+  # The crew's no-mistakes run step is actively running: a static pane is normal.
   export FM_FAKE_CREW_STATE='state: working · source: run-step · ci running'
 
   # Phase A: a high escalation threshold means the first sighting is absorbed.
@@ -341,29 +375,74 @@ test_nonterminal_stale_provably_working_absorbed_then_escalated() {
     FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
   pid=$!
   if ! wait_live "$pid" 30; then
-    reap "$pid"; fail "watcher exited for a fresh provably-working non-terminal stale (should absorb): $(cat "$out")"
+    reap "$pid"; fail "watcher exited for a fresh actively-validating non-terminal stale (should absorb): $(cat "$out")"
   fi
-  [ ! -s "$out" ] || fail "fresh provably-working stale printed a wake reason during absorb"
-  [ ! -s "$state/.wake-queue" ] || fail "fresh provably-working stale enqueued a wake during absorb"
+  [ ! -s "$out" ] || fail "fresh actively-validating stale printed a wake reason during absorb"
+  [ ! -s "$state/.wake-queue" ] || fail "fresh actively-validating stale enqueued a wake during absorb"
   [ "$(cat "$state/.stale-$key" 2>/dev/null || true)" = "$pane_hash" ] || fail "stale suppressor not advanced on absorb"
   [ -s "$state/.stale-since-$key" ] || fail "stale-since escalation timer was not recorded on absorb"
   reap "$pid"
 
-  # Phase B: backdate the idle timer past the threshold; the next run escalates.
-  # (The subsequent-sight timer path does not re-read the crew state.)
-  echo $(( $(date +%s) - 500 )) > "$state/.stale-since-$key"
+  # Phase B: backdate the idle timer WAY past the threshold, keeping the run
+  # actively validating. The wedge-escalate exemption must HOLD it: no exit, no
+  # wedge wake, and the timer is reset so the read is not repeated every poll.
+  echo $(( $(date +%s) - 605000 )) > "$state/.stale-since-$key"
   : > "$out"
   PATH="$fakebin:$PATH" FM_FAKE_TMUX_WINDOW="$window" FM_FAKE_TMUX_CAPTURE="$capture_file" \
     FM_STATE_OVERRIDE="$state" FM_CREW_STATE_BIN="$fakebin/fm-crew-state.sh" FM_STALE_ESCALATE_SECS=240 FM_POLL=1 FM_SIGNAL_GRACE=1 \
     FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
   pid=$!
-  wait_for_exit "$pid" 40 || fail "watcher did not escalate a provably-working non-terminal stale past the threshold"
+  if ! wait_live "$pid" 30; then
+    reap "$pid"; fail "watcher wedge-escalated an actively-validating crew past the threshold (should hold): $(cat "$out")"
+  fi
+  [ ! -s "$out" ] || fail "actively-validating crew printed a wedge wake past the threshold: $(cat "$out")"
+  [ ! -s "$state/.wake-queue" ] || fail "actively-validating crew enqueued a wedge wake past the threshold"
+  # Timer was reset to ~now (not left backdated), so it will re-check about once per
+  # threshold window instead of every poll.
+  since=$(cat "$state/.stale-since-$key" 2>/dev/null || true)
+  case "$since" in ''|*[!0-9]*) reap "$pid"; fail "stale-since timer was cleared or corrupted while holding" ;; esac
+  [ "$(( $(date +%s) - since ))" -lt 60 ] || { reap "$pid"; fail "stale-since timer was not reset to ~now while holding (age $(( $(date +%s) - since ))s)"; }
+  reap "$pid"
+  pass "an actively-validating non-terminal stale is absorbed on first sight AND held past the threshold (no false wedge wake)"
+}
+
+# --- non-terminal stale, crew STOPPED validating: still wedge-escalates -----------
+# A crew absorbed on first sight (it WAS provably working) whose run has since
+# stopped - no longer an actively-running step - is a real wedge candidate: past the
+# threshold it must still escalate. This proves the exemption does not mask a
+# genuinely wedged crew once its validation ends.
+
+test_nonterminal_stale_stopped_validating_still_escalates() {
+  local dir state fakebin out drain_out capture_file window key pane_hash sig pid
+  dir=$(make_case nonterminal-stale-stopped-validating); state="$dir/state"; fakebin="$dir/fakebin"
+  out="$dir/watch.out"; drain_out="$dir/drain.out"; capture_file="$dir/pane.txt"
+  window="test:fm-quiet"
+  printf 'idle building output' > "$capture_file"
+  printf 'window=%s\nkind=ship\n' "$window" > "$state/quiet.meta"
+  printf 'working: still compiling\n' > "$state/quiet.status"
+  sig=$(seen_sig "$state/quiet.status"); printf '%s' "$sig" > "$state/.seen-quiet_status"
+  key=$(printf '%s' "$window" | tr ':/.' '___')
+  pane_hash=$(hash_text "idle building output")
+  printf '%s' "$pane_hash" > "$state/.hash-$key"
+  printf '1\n' > "$state/.count-$key"
+  # Prime the already-classified stale state (hash matches) and a backdated timer, as
+  # if the crew were absorbed earlier while its run was active.
+  printf '%s' "$pane_hash" > "$state/.stale-$key"
+  echo $(( $(date +%s) - 500 )) > "$state/.stale-since-$key"
+  # The run has now STOPPED: no actively-running step. NOT actively validating.
+  export FM_FAKE_CREW_STATE='state: unknown · source: none · no current-state source available'
+
+  PATH="$fakebin:$PATH" FM_FAKE_TMUX_WINDOW="$window" FM_FAKE_TMUX_CAPTURE="$capture_file" \
+    FM_STATE_OVERRIDE="$state" FM_CREW_STATE_BIN="$fakebin/fm-crew-state.sh" FM_STALE_ESCALATE_SECS=240 FM_POLL=1 FM_SIGNAL_GRACE=1 \
+    FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
+  pid=$!
+  wait_for_exit "$pid" 40 || fail "watcher did not wedge-escalate a crew that stopped validating past the threshold"
   grep -F "stale: $window" "$out" >/dev/null || fail "escalation did not print a stale wake"
   grep -F "possible wedge" "$out" >/dev/null || fail "escalation did not flag a possible wedge"
   [ ! -e "$state/.stale-since-$key" ] || fail "stale-since timer was not cleared after escalation"
   FM_STATE_OVERRIDE="$state" "$DRAIN" > "$drain_out" 2>/dev/null || fail "drain after the wedge escalation failed"
   grep "$(printf '\tstale\t')" "$drain_out" | grep -F "$window" >/dev/null || fail "wedge escalation was not queued"
-  pass "provably-working non-terminal stale is absorbed on first sight, then wedge-escalated past the threshold"
+  pass "a crew that stopped validating still wedge-escalates past the threshold (real wedges are not masked)"
 }
 
 # --- non-terminal stale, crew NOT provably working: surfaced immediately ------
@@ -583,6 +662,7 @@ test_stale_is_terminal_classifier
 test_scan_captain_relevant_statuses_classifier
 test_classifier_primitives
 test_crew_is_provably_working_classifier
+test_crew_is_actively_validating_classifier
 test_signal_crew_provably_working_classifier
 test_provably_working_signal_absorbed
 test_turn_ended_provably_working_absorbed
@@ -590,7 +670,8 @@ test_turn_ended_not_working_surfaced
 test_working_note_not_working_surfaced
 test_actionable_signal_surfaced
 test_terminal_stale_surfaced
-test_nonterminal_stale_provably_working_absorbed_then_escalated
+test_nonterminal_stale_validating_absorbed_and_held
+test_nonterminal_stale_stopped_validating_still_escalates
 test_nonterminal_stale_not_working_surfaced
 test_nonterminal_stale_repairs_missing_or_corrupt_timer
 test_triage_log_size_cap_accepts_spaced_wc_counts
